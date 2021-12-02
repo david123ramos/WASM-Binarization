@@ -1,0 +1,18 @@
+{
+  "name": "binarization",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build:emscripten": "docker run --rm -v $(pwd):/src trzeci/emscripten  chmod +x ./build.sh && ./build.sh",
+    "build:app": "cp ./src/index.html ./src/main.js dist/",
+    "build": "npm run build:emscripten && npm run build:app",
+    "serve": "http-server -c0 dist",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "devDependencies": {
+    "http-server": "*"
+  },
+  "author": "drs",
+  "license": "ISC"
+}
