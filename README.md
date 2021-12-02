@@ -1,8 +1,6 @@
-#Welcome back!
-if you forgotten how to run this project, i'll help you, guy.
-
-It's quite simple. Follow the steps bellow:
-
+<h1>Welcome back!</h1>
+if you forgotten how to run this project, i'll help you, guy.🤓
+It's quite simple. Follow the steps bellow 
 <ol>
     <li>Verify if docker deamon is running. This step is important if you are in windows using WSL2</li>
     <li>Verify if node and npm are installed correctly.</li>
