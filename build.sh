@@ -13,6 +13,8 @@ echo "============================================="
 (
   # Compile C/C++ code
   em++ \
+    -g \
+    -gseparate-dwarf=temp.debug.wasm \
     ${OPTIMIZE} \
     --bind \
     -s STRICT=1 \
