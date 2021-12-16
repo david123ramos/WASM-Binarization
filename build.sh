@@ -18,6 +18,7 @@ echo "============================================="
     ${OPTIMIZE} \
     --bind \
     -s STRICT=1 \
+    -s EXPORTED_RUNTIME_METHODS=ccall \
     -s ALLOW_MEMORY_GROWTH=1 \
     -s MALLOC=emmalloc \
     -s MODULARIZE=1 \

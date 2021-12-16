@@ -6,23 +6,67 @@
 #include <numeric>
 #include <math.h>
 #include <emscripten/bind.h>
-
 #include "emscripten.h"
+
+
+void grayscale(int img_ptr, int len) {
+    uint8_t *img = (uint8_t *) img_ptr;
+
+    for ( int i =0; i <len; i+=4 ) {
+
+       
+        double brightness = (0.299 * img[i]) + (0.587 * img[i+1])  + (0.114 * img[i+2]); 
+
+        img[i] = brightness;
+        img[i+1] = brightness;
+        img[i+2] = brightness;
+    }
+}
+
+
+void binarization(int img_ptr, double threshold , int len) {
+
+    uint8_t *img = (uint8_t *) img_ptr;
+
+    for ( int i =0; i <len; i+=4 ) {
+
+       
+        double brightness = (0.299 * img[i]) + (0.587 * img[i+1])  + (0.114 * img[i+2]);
+
+        if(brightness > threshold) {
+            
+            img[i] = 255;
+            img[i+1] = 255;
+            img[i+2] = 255;
+        }else {
+            img[i] = 0;
+            img[i+1] = 0;
+            img[i+2] = 0;
+        }
+
+    }
+}
  
  
- double otsusThreshold(int img_ptr, int w, int h) {
+ double otsusThreshold(int img_ptr, int len) {
     uint8_t *img;
     img = (uint8_t *) img_ptr;
     double n_bins =  0.1;
 
+    double mapped_image[len];
 
-    int total_weight = w * h;
+    for (int i = 0; i < len; i++) {
+        mapped_image[i] = img[i] / 255.0; //map to value between 0 and 1
+    }
+
+
+    int total_weight = len;
 
     double least_variance = -1;
     double least_variance_threshold = -1;
 
-    double min_element =    (*std::min_element(img, img + w * h) ) + n_bins;
-    double max_element =    (*std::max_element(img, img + w * h) ) - n_bins;
+    double min_element =    (*std::min_element(mapped_image, mapped_image + len) ) + n_bins;
+    double max_element =    (*std::max_element(mapped_image, mapped_image +len) ) - n_bins;
     std::vector<double> color_thresholds;
    
     for(double i = min_element; i <= max_element; i+= n_bins) {
@@ -36,7 +80,7 @@
 
         //double a = color_thresholds.begin();
 
-        std::copy_if(img, img + w * h, std::back_inserter(bg_pixels), [color_threshold](int i){return i < color_threshold;});
+        std::copy_if(mapped_image, mapped_image +len, std::back_inserter(bg_pixels), [color_threshold](int i){return i < color_threshold;});
         double weight_bg =  ((double) bg_pixels.size()) / total_weight;
 
         //calculate mean of background pixels
@@ -54,9 +98,9 @@
             variance_bg += pow( bg_pixel - mean_bg , 2);
         }
 
-        variance_bg += variance_bg / bg_pixels.size();
+        variance_bg = variance_bg / bg_pixels.size();
 
-        std::copy_if(img, img + w * h, std::back_inserter(fr_pixels), [color_threshold](int i){return i >= color_threshold;});
+        std::copy_if(mapped_image, mapped_image + len, std::back_inserter(fr_pixels), [color_threshold](int i){return i >= color_threshold;});
         double weight_fr = ((double) fr_pixels.size()) / total_weight;
 
         //calculate mean of foreground pixels
@@ -73,7 +117,7 @@
         for (int fr_pixel: fr_pixels) {
             variance_fr += pow( fr_pixel - mean_fr , 2);
         }
-        variance_fr += variance_fr / bg_pixels.size();
+        variance_fr = variance_fr / bg_pixels.size();
 
         double class_variance = weight_fr * variance_fr + weight_bg * variance_bg;
 
@@ -86,15 +130,17 @@
         }
     }
 
-    return least_variance_threshold;
+    return least_variance_threshold * 255;
 }
 
 
-double get_version(){
+double get_version() {
     return 0.1;
 }
 
 EMSCRIPTEN_BINDINGS(binarization_module) {
     emscripten::function("version", &get_version);
+    emscripten::function("grayscale", &grayscale);
     emscripten::function("otsusThreasholdValue", &otsusThreshold);
+    emscripten::function("binarization", &binarization);
 }
