@@ -5,6 +5,13 @@ import wasmModule from './binarization.js';
 wasmModule().then(($wasm) => {
     console.log(`It works! Version ${$wasm.version()}`);
     console.log($wasm);
+
+    //bind _malloc to remeber to use free
+    const m = $wasm._malloc;
+    $wasm._malloc = function(size) {
+        console.trace("WARNING - Malloc use require 'free' function use too. Don't forget");
+        return m(size);
+    }
     
     const img = new Image();
     img.src = "./assets/img2.jpg";
@@ -19,19 +26,104 @@ wasmModule().then(($wasm) => {
         const imageData = ctx.getImageData(0,0, cv.width, cv.height);
 
         const dataGrayscale = grayscaleWASM(imageData.data);
+
         const simplified = rgba2OneGrayscaleChanelWASM(dataGrayscale.grayscalePointer, dataGrayscale.grayscaleImage.length);
         const dataOtsu = otsusThresholdingWASM(simplified);
-        
-
         binarizationWASM(dataGrayscale.originalImage, dataGrayscale.grayscalePointer, dataOtsu.threshold)
 
         const finalResultImg = $wasm.HEAPF32.subarray((dataGrayscale.grayscalePointer >> 2 ) , (dataGrayscale.grayscalePointer >> 2) + dataGrayscale.originalImage.length);
-        document.body.appendChild(writeInCanvas(finalResultImg));
+        console.log("Final", finalResultImg);
 
+        const res = [];
+        for(let i =0; i < finalResultImg.length; i+=4) {
+            res.push(finalResultImg[i]);
+        }
+
+
+        const plot = [];
+
+        const step = 500;
+        for(let i =0; i < res.length; i+= step) {
+            let sum = 0;
+            for(let j = i; j < i + step; j++) {
+                sum += res[j] / 255;
+            }
+            plot.push(sum);
+        }
+
+
+        const plot2 = [];
+
+        //const step = 500;
+        for(let i =0; i < step; i++) {
+            let sum = 0;
+            for(let j = i; j < res.length; j+= step) {
+                sum += res[j] / 255;
+            }
+            plot2.push(sum);
+        }
+
+        
+        document.body.appendChild(generateVerticalHistogram(plot, Math.max(...plot), plot.length));
+        
+        
+        document.body.appendChild(writeInCanvas(finalResultImg));
+        
+        document.body.append(generateHorizontalHistogram(plot2, plot2.length, Math.max(...plot2) ))
 
         dataGrayscale.free();
         dataOtsu.free();
+        
     };
+
+    function generateVerticalHistogram(arr, width, height) {
+        const cv = document.createElement("canvas");
+        cv.width = width;
+        cv.height = height;
+        cv.style.marginRight = "5px";
+        const ctx = cv.getContext("2d");
+
+        ctx.fillStyle = "black";
+        ctx.fillRect(0, 0, cv.width, cv.height);
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = "white"
+        ctx.fillStyle = "white";
+        ctx.font = "20px Arial";
+        ctx.fillText("vertical", 15, 20);
+        
+        for(let i = 0; i < arr.length; i++) {
+            ctx.beginPath();
+            ctx.moveTo(0, i);
+            ctx.lineTo(arr[i], i);
+            ctx.stroke();
+        }
+        return cv
+    }
+
+    function generateHorizontalHistogram(arr, width, height) {
+        const cv = document.createElement("canvas");
+        cv.width = width;
+        cv.height = height;
+        cv.style.marginLeft = "5px";
+        
+        const ctx = cv.getContext("2d");
+        
+        ctx.fillStyle = "black";
+        ctx.fillRect(0, 0, cv.width, cv.height);
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = "white"
+        ctx.fillStyle = "white";
+        ctx.font = "20px Arial";
+        ctx.fillText("horizontal", 15, 20);
+        
+        for(let i = 0; i < arr.length; i++) {
+            ctx.beginPath();
+            ctx.moveTo(i, height);
+            ctx.lineTo(i, height - arr[i]);
+            ctx.stroke();
+        }
+        return cv
+    }
 
     function writeInCanvas(data){
         const canvas = document.createElement("canvas");

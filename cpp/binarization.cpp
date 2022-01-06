@@ -39,7 +39,25 @@ emscripten::val reduce_rgba_to_one_chanel(int img_ptr, int len) {
 
 }
 
+emscripten::val get_horizontal_histogram(int img_ptr,int len, int image_width) {
+    int8_t *img = (int8_t *) img_ptr;
+   
+    std::vector<double> plot;
 
+
+    for(int i =0; i < len; i+=image_width) {
+        double sum = 0;
+        for(int j= 0; j < image_width; j+= 4) {
+            sum+= img[i+j];
+        }
+        plot.push_back(sum);
+    }
+
+    return emscripten::val(emscripten::typed_memory_view(image_width, &plot[0]));
+}
+// [0 ,0, 0,
+//  0, 0, 0,
+//  0 ,0 ,0]
 
  double otsus_threshold(int img_ptr, int len) {
     float_t *img = (float_t *) img_ptr;
@@ -144,6 +162,7 @@ EMSCRIPTEN_BINDINGS (binarization_module) {
     emscripten::function("version", &get_version);
     emscripten::function("grayscale2", &grayscale);
     emscripten::function("reduceRGBA2OneChanel", &reduce_rgba_to_one_chanel);
+    emscripten::function("getHorizontalHistogram", &get_horizontal_histogram);
     emscripten::function("otsusThreasholdValueFloat", &otsus_threshold);
     emscripten::function("binarizationFloat", &binarization);
 }
