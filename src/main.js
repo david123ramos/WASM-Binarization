@@ -14,14 +14,18 @@ wasmModule().then(($wasm) => {
     }
     
     const img = new Image();
-    img.src = "./assets/img2.jpg";
+    img.src = "./assets/a.jpeg";
+    //img.src = "./assets/6.png";
+    //img.src = "./assets/8.png";
 
     const cv = document.querySelector("#mainCV");
 
     const ctx = cv.getContext("2d");
+    ctx.fillStyle = "#fff"
+    ctx.fillRect(0, 0, cv.width, cv.height);
 
     img.onload = function() {
-        ctx.drawImage(this, 0, 0, this.width, this.height);
+        ctx.drawImage(this, 0, 0, 500, 500);
 
         const imageData = ctx.getImageData(0,0, cv.width, cv.height);
 
@@ -29,7 +33,7 @@ wasmModule().then(($wasm) => {
 
         const simplified = rgba2OneGrayscaleChanelWASM(dataGrayscale.grayscalePointer, dataGrayscale.grayscaleImage.length);
         const dataOtsu = otsusThresholdingWASM(simplified);
-        binarizationWASM(dataGrayscale.originalImage, dataGrayscale.grayscalePointer, dataOtsu.threshold)
+        binarizationWASM(dataGrayscale.originalImage, dataGrayscale.grayscalePointer, dataOtsu.threshold, this.src)
 
         const finalResultImg = $wasm.HEAPF32.subarray((dataGrayscale.grayscalePointer >> 2 ) , (dataGrayscale.grayscalePointer >> 2) + dataGrayscale.originalImage.length);
         console.log("Final", finalResultImg);
@@ -41,12 +45,32 @@ wasmModule().then(($wasm) => {
 
 
         const plot = [];
-
+        const dt = 10
+        let searchinEnd = false;
+        let hasEnded = false;
+        const pi = [];
+        const pf = []
         const step = 500;
+        let vsz = 0;
         for(let i =0; i < res.length; i+= step) {
             let sum = 0;
             for(let j = i; j < i + step; j++) {
                 sum += res[j] / 255;
+
+               
+                if(sum > dt && !searchinEnd && !hasEnded) {
+                    pi.push({x: i, y:j});
+                    searchinEnd = true;
+                }else if(searchinEnd && sum < dt && !hasEnded) {
+                    pf.push({x: i, y:j});
+                    searchinEnd = false;
+                    hasEnded = true
+                }
+
+
+            }
+            if(sum >  0) {
+                vsz += 1;
             }
             plot.push(sum);
         }
@@ -54,22 +78,57 @@ wasmModule().then(($wasm) => {
 
         const plot2 = [];
 
+        let searchinEndh = false;
+        let hasEndedh = false;
+        const pih = [];
+        const pfh = []
+        let hsz = 0
         //const step = 500;
         for(let i =0; i < step; i++) {
             let sum = 0;
             for(let j = i; j < res.length; j+= step) {
                 sum += res[j] / 255;
+
+
+                
+
+                if(sum > dt && !searchinEndh && !hasEndedh) {
+                    pih.push({x: i, y:j});
+                    searchinEndh = true;
+                }else if(searchinEndh && sum < dt && !hasEndedh) {
+                    pfh.push({x: i, y:j});
+                    searchinEndh = false;
+                    hasEndedh = true
+                }
+            }
+            if(sum >  0) {
+                hsz += 1;
             }
             plot2.push(sum);
         }
 
+        console.log(pi, pf, pih, pfh, vsz, hsz);
+
         
-        document.body.appendChild(generateVerticalHistogram(plot, Math.max(...plot), plot.length));
+
         
+        document.body.appendChild(generateVerticalHistogram(plot, 500, 500));
         
-        document.body.appendChild(writeInCanvas(finalResultImg));
+        writeInCanvas(finalResultImg).then(canvas => {
+            document.body.appendChild(canvas);
+
+            const ctx = canvas.getContext("2d");
+            ctx.strokeStyle = "#00ff0d"
+            
+            ctx.fillStyle = "#00ff0d";
+            ctx.font = "20px Arial";
+            ctx.fillText("detected ROI", pfh[0].x, (pi[0].x / 500) - 20);
+
+            ctx.strokeRect(pfh[0].x ,pi[0].x / 500, hsz, vsz);
+            ctx.fill();
+            document.body.append(generateHorizontalHistogram(plot2, 500, 500 ))
+        });
         
-        document.body.append(generateHorizontalHistogram(plot2, plot2.length, Math.max(...plot2) ))
 
         dataGrayscale.free();
         dataOtsu.free();
@@ -100,7 +159,7 @@ wasmModule().then(($wasm) => {
         return cv
     }
 
-    function generateHorizontalHistogram(arr, width, height) {
+    function generateHorizontalHistogram(arr, width, height) {  
         const cv = document.createElement("canvas");
         cv.width = width;
         cv.height = height;
@@ -126,16 +185,19 @@ wasmModule().then(($wasm) => {
     }
 
     function writeInCanvas(data){
-        const canvas = document.createElement("canvas");
-        canvas.width = 500;
-        canvas.height = 500;
-        canvas.classList.add("cv");
 
-        var context = canvas.getContext("2d");
-        var imageData = context.createImageData(500, 500);
-        imageData.data.set(data);
-        context.putImageData(imageData, 0, 0);
-        return canvas;
+        return new Promise((resolve, reject) => {
+            const canvas = document.createElement("canvas");
+            canvas.width = 500;
+            canvas.height = 500;
+            canvas.classList.add("cv");
+    
+            var context = canvas.getContext("2d");
+            var imageData = context.createImageData(500, 500);
+            imageData.data.set(data);
+            context.putImageData(imageData, 0, 0);
+            resolve(canvas);
+        });
     }
 
 
