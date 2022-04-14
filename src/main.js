@@ -14,9 +14,12 @@ wasmModule().then(($wasm) => {
     }
     
     const img = new Image();
-    img.src = "./assets/a.jpeg";
+    //img.src = "./assets/a.jpeg"; //sign
+    img.src = "./assets/manynumbers (1).jpeg"
+    //img.src = "./assets/bad5.jpeg" //light correction
     //img.src = "./assets/6.png";
     //img.src = "./assets/8.png";
+    //img.src = "./assets/img2.jpg";
 
     const cv = document.querySelector("#mainCV");
 
@@ -35,100 +38,120 @@ wasmModule().then(($wasm) => {
         const dataOtsu = otsusThresholdingWASM(simplified);
         binarizationWASM(dataGrayscale.originalImage, dataGrayscale.grayscalePointer, dataOtsu.threshold, this.src)
 
-        const finalResultImg = $wasm.HEAPF32.subarray((dataGrayscale.grayscalePointer >> 2 ) , (dataGrayscale.grayscalePointer >> 2) + dataGrayscale.originalImage.length);
-        console.log("Final", finalResultImg);
+        const finalResultImg = $wasm.HEAPF32.subarray((dataGrayscale.grayscalePointer >> 2 ) , (dataGrayscale.grayscalePointer >> 2) + dataGrayscale.originalImage.length); 
 
-        const res = [];
+        const simplifiedImageBinarizated = [];
+
         for(let i =0; i < finalResultImg.length; i+=4) {
-            res.push(finalResultImg[i]);
+            simplifiedImageBinarizated.push(finalResultImg[i]);
         }
 
+        const delta = 5;
+        const step = 500; // canvas width
 
-        const plot = [];
-        const dt = 10
-        let searchinEnd = false;
-        let hasEnded = false;
-        const pi = [];
-        const pf = []
-        const step = 500;
-        let vsz = 0;
-        for(let i =0; i < res.length; i+= step) {
+        const verticalPlot = [];
+        const horizontalPlot = [];
+
+        for(let posY = 0; posY < simplifiedImageBinarizated.length; posY += step) {
             let sum = 0;
-            for(let j = i; j < i + step; j++) {
-                sum += res[j] / 255;
-
-               
-                if(sum > dt && !searchinEnd && !hasEnded) {
-                    pi.push({x: i, y:j});
-                    searchinEnd = true;
-                }else if(searchinEnd && sum < dt && !hasEnded) {
-                    pf.push({x: i, y:j});
-                    searchinEnd = false;
-                    hasEnded = true
-                }
-
-
+            for(let posX = posY; posX < posY + step; posX++) {
+                sum += simplifiedImageBinarizated[posX] / 255;
             }
-            if(sum >  0) {
-                vsz += 1;
-            }
-            plot.push(sum);
+            verticalPlot.push(sum);
         }
 
-
-        const plot2 = [];
-
-        let searchinEndh = false;
-        let hasEndedh = false;
-        const pih = [];
-        const pfh = []
-        let hsz = 0
-        //const step = 500;
-        for(let i =0; i < step; i++) {
-            let sum = 0;
-            for(let j = i; j < res.length; j+= step) {
-                sum += res[j] / 255;
-
-
-                
-
-                if(sum > dt && !searchinEndh && !hasEndedh) {
-                    pih.push({x: i, y:j});
-                    searchinEndh = true;
-                }else if(searchinEndh && sum < dt && !hasEndedh) {
-                    pfh.push({x: i, y:j});
-                    searchinEndh = false;
-                    hasEndedh = true
-                }
+        let init = 0;
+        const pointsAuxVertical = [];
+        let searchingFinal = false;
+        for(let i = 0; i < verticalPlot.length; i++) {
+            
+            if(verticalPlot[i]  > delta && !searchingFinal) {
+                init = i;
+                searchingFinal = true
             }
-            if(sum >  0) {
-                hsz += 1;
+
+            if(verticalPlot[i] < delta && searchingFinal) {
+                pointsAuxVertical.push({init, final: i});
+                searchingFinal = false;
             }
-            plot2.push(sum);
+        
         }
 
-        console.log(pi, pf, pih, pfh, vsz, hsz);
+        for(let posX = 0; posX < step; posX++) {
+            let sum2 = 0;
+            for(let posY = posX; posY < simplifiedImageBinarizated.length; posY+= step) {
+                sum2 += simplifiedImageBinarizated[posY] / 255;
+            }
+            horizontalPlot.push(sum2);
+        }
 
-        
+        let initHorizontal = 0;
+        const pointsAuxHorizontal = [];
+        let searchingFinalHoriz = false;
+        for(let i = 0; i < horizontalPlot.length; i++) {
+            
+            if(horizontalPlot[i]  > delta && !searchingFinalHoriz) {
+                initHorizontal = i;
+                searchingFinalHoriz = true
+            }
 
+            if(horizontalPlot[i] < delta && searchingFinalHoriz) {
+                pointsAuxHorizontal.push({initHorizontal, final: i});
+                searchingFinalHoriz = false;
+            }
         
-        document.body.appendChild(generateVerticalHistogram(plot, 500, 500));
-        
+        }
+
+        document.body.appendChild(generateVerticalHistogram(verticalPlot , step, step));
+        document.body.appendChild(generateHorizontalHistogram(horizontalPlot, step, step));
+
         writeInCanvas(finalResultImg).then(canvas => {
             document.body.appendChild(canvas);
 
             const ctx = canvas.getContext("2d");
-            ctx.strokeStyle = "#00ff0d"
-            
-            ctx.fillStyle = "#00ff0d";
+            ctx.strokeStyle = "#03fc30" // light green
+            ctx.fillStyle = "green";
             ctx.font = "20px Arial";
-            ctx.fillText("detected ROI", pfh[0].x, (pi[0].x / 500) - 20);
 
-            ctx.strokeRect(pfh[0].x ,pi[0].x / 500, hsz, vsz);
+            if(pointsAuxHorizontal.length > pointsAuxVertical.length) {
+
+                let curr = 0;
+                for(let i =0; i < pointsAuxHorizontal.length; i++) {
+
+                    var verticalPoint = pointsAuxVertical[curr];
+
+                    ctx.strokeRect(
+                        pointsAuxHorizontal[i].initHorizontal,
+                        verticalPoint.init,
+                        pointsAuxHorizontal[i].final - pointsAuxHorizontal[i].initHorizontal,
+                        verticalPoint.final - verticalPoint.init
+                    )
+
+                    if( (pointsAuxVertical.length - 1)  > curr ) curr++;
+                }
+
+            }else {
+
+                let curr = 0;
+                for(let i =0; i < pointsAuxVertical.length; i++) {
+
+                    var horizontalPoint = pointsAuxHorizontal[curr];
+                    
+                    ctx.strokeRect(
+                        horizontalPoint.initHorizontal,
+                        pointsAuxVertical[i].init,
+                        horizontalPoint.final - horizontalPoint.initHorizontal,
+                        pointsAuxVertical[i].final - pointsAuxVertical[i].init
+                    )
+
+                    if( (pointsAuxHorizontal.length - 1)  > curr ) curr++;
+                }
+
+            }
+
             ctx.fill();
-            document.body.append(generateHorizontalHistogram(plot2, 500, 500 ))
         });
-        
+
 
         dataGrayscale.free();
         dataOtsu.free();
