@@ -15,11 +15,12 @@ wasmModule().then(($wasm) => {
     
     const img = new Image();
     //img.src = "./assets/a.jpeg"; //sign
-    img.src = "./assets/manynumbers (1).jpeg"
+    //img.src = "./assets/manynumbers (1).jpeg"
     //img.src = "./assets/bad5.jpeg" //light correction
     //img.src = "./assets/6.png";
     //img.src = "./assets/8.png";
-    //img.src = "./assets/img2.jpg";
+    //img.src = "./assets/img2g.jpg";
+    img.src = "./assets/img2.jpg";
 
     const cv = document.querySelector("#mainCV");
 
@@ -32,7 +33,17 @@ wasmModule().then(($wasm) => {
 
         const imageData = ctx.getImageData(0,0, cv.width, cv.height);
 
-        const dataGrayscale = grayscaleWASM(imageData.data);
+        const needsBlur = document.querySelector("#blur_checkbox").checked;
+
+        let dataGrayscale = null;
+        if(needsBlur) {
+            const blurredImage = boxBlur(imageData.data);
+            writeInCanvas(blurredImage).then(canvas => document.body.appendChild(canvas));
+            dataGrayscale = grayscaleWASM(blurredImage);
+        }else{
+            dataGrayscale = grayscaleWASM(imageData.data);
+        }
+
 
         const simplified = rgba2OneGrayscaleChanelWASM(dataGrayscale.grayscalePointer, dataGrayscale.grayscaleImage.length);
         const dataOtsu = otsusThresholdingWASM(simplified);
@@ -223,19 +234,17 @@ wasmModule().then(($wasm) => {
         });
     }
 
+    function boxBlur(pixels) {
 
-
-    function getSimplifiedImageDataFloat(imgData) {
-        const performanceArraySimplificationt0 = performance.now();
-        const arr = [];
-        for(let i = 0; i < imgData.length; i+=4) {
-            arr.push( Number(imgData[i].toFixed(6)) );
-        }
-        //TODO: remover gambiarra
-        arr.shift(); //remove o primeiro elemento lixo
-        const performanceArraySimplificationtf = performance.now();
-        console.info(`JS array simplification took: ${performanceArraySimplificationtf - performanceArraySimplificationt0} mils`);
-        return new Float32Array(arr);
+        const vector = new $wasm.vector(); 
+        pixels.forEach(val => vector.push_back(val));
+        
+        const t1 = performance.now();
+        const response =  $wasm.boxBlur(vector, vector.size(), 500);
+        const t2 = performance.now();
+        console.info(`WASM box blur took: ${t2 - t1} mils`);
+        
+        return response;
     }
 
 
