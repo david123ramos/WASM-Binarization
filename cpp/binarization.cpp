@@ -27,7 +27,11 @@ void grayscale(int img_ptr, int len) {
     }
 }
 
-
+/**
+ * 
+ * @deprecated
+ * 
+ * */
 emscripten::val reduce_rgba_to_one_chanel(int img_ptr, int len) {
 
     float_t *img = (float_t *) img_ptr;
@@ -234,6 +238,113 @@ emscripten::val box_blur(std::vector<int> img, int len, int chanel_width) {
 
 
 
+emscripten::val get_flatten_image(std::vector<int> img) {
+
+    int delta = 4;
+    size_t simplified_img_len= img.size() / delta;
+    std::vector<int> simplified_image; 
+    simplified_image.reserve(simplified_img_len); //avoid memory recalc
+
+    for(size_t i =0; i < img.size(); i+= delta) {
+        simplified_image.push_back(img[i]); 
+    }
+
+    return emscripten::val(emscripten::typed_memory_view(simplified_img_len, &simplified_image[0]));
+}
+
+
+emscripten::val get_flatten_image_f(std::vector<double> img) {
+
+    int delta = 4;
+    size_t simplified_img_len= img.size() / delta;
+    std::vector<double> simplified_image; 
+    simplified_image.reserve(simplified_img_len); //avoid memory recalc
+
+    for(size_t i =0; i < img.size(); i+= delta) {
+        simplified_image.push_back(img[i]); 
+    }
+
+    return emscripten::val(emscripten::typed_memory_view(simplified_img_len, &simplified_image[0]));
+}
+
+
+emscripten::val get_vertical_plot(std::vector<int> simplified_image) {
+
+    int step = 500; //canvas size
+
+    std::vector<double> vertical_plot;
+    vertical_plot.reserve(step);
+    double sum = 0;
+    for(int posY = 0; posY < simplified_image.size(); posY += step) {
+        sum = 0;
+        for(int posX = posY; posX < posY + step; posX++) {
+            sum += (simplified_image[posX] / 255);
+        }
+        vertical_plot.push_back(sum);
+    }
+
+    return emscripten::val(emscripten::typed_memory_view(step, &vertical_plot[0]));
+}
+
+std::vector<double> get_horizontal_plot(std::vector<int> simplified_image) {
+
+    int step = 500; //canvas size
+    std::vector<double> horizontal_plot;
+    horizontal_plot.reserve(step);
+    double sum = 0;
+    for(int posX = 0; posX < step; posX++) {
+        sum = 0;
+        for(int posY = posX; posY < simplified_image.size(); posY+= step) {
+            sum += (simplified_image[posY] / 255);
+        }
+        horizontal_plot.push_back(sum);
+    }
+
+    return horizontal_plot;
+}
+
+namespace pompia {
+    class Point {
+        public:
+            int init;
+            int final;        
+    };
+}
+
+
+std::vector<pompia::Point> get_points(std::vector<double> plot){
+
+    int init = 0;
+    bool searchingFinal = false;
+    double curr = 0;
+    int delta = 5; //precision
+
+    std::vector<pompia::Point> points;
+    points.reserve(plot.size());
+    pompia::Point point;
+
+    for(size_t i = 0; i < plot.size(); i++) {
+
+        curr = plot[i];
+
+        if(curr > delta && !searchingFinal) {
+            init = i;
+            searchingFinal = true;
+        }
+        
+        if(curr < delta && searchingFinal) {
+
+            point.init = init;
+            point.final = i;
+            searchingFinal = false;
+            points.push_back(point);
+        }
+    }
+    points.shrink_to_fit();
+    return points;
+}
+
+
 
 EMSCRIPTEN_BINDINGS (binarization_module) {
     emscripten::function("version", &get_version);
@@ -243,7 +354,21 @@ EMSCRIPTEN_BINDINGS (binarization_module) {
     emscripten::function("otsusThreasholdValueFloat", &otsus_threshold);
     emscripten::function("binarizationFloat", &binarization);
 
-    //emscripten::value_array<std::vector<int>>("img").element();
     emscripten::register_vector<int>("vector");
+    emscripten::register_vector<double>("RealVector");
+
+
+    emscripten::register_vector<pompia::Point>("PointVector");
+
+    emscripten::value_object<pompia::Point>("Point")
+    .field("init", &pompia::Point::init)
+    .field("final", &pompia::Point::final);
+
+
     emscripten::function("boxBlur", &box_blur);
+    emscripten::function("flatRGBA", &get_flatten_image);
+    emscripten::function("flatRGBAFromImageWithPixelRealValues", &get_flatten_image_f); //TODO: improve function name
+    emscripten::function("getVerticalPlot", &get_vertical_plot);
+    emscripten::function("getHorizontalPlot", &get_horizontal_plot);
+    emscripten::function("getPoints", &get_points);
 }
