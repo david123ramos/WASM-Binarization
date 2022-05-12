@@ -138,24 +138,29 @@ emscripten::val get_horizontal_histogram(int img_ptr,int len, int image_width) {
     return least_variance_threshold;
 }
 
-void binarization(int img_ptr, double threshold , int len) {
+std::vector<int> binarization(int img_ptr, double threshold , int len) {
 
     float_t *img = (float_t *) img_ptr;
+    std::vector<int> result;
+    result.reserve(len);
 
     for ( int i =0; i <len; i+= 4 ) {
 
         if ( img[i] < threshold ) {
             
-            img[i]   = 255;
-            img[i+1] = 255;
-            img[i+2] = 255;
+            result.push_back(255);
+            result.push_back(255);
+            result.push_back(255);
         } else {
-            img[i]   = 0;
-            img[i+1] = 0;
-            img[i+2] = 0;
+            result.push_back(0);
+            result.push_back(0);
+            result.push_back(0);
         }
 
+        result.push_back(255); //append alpha chanel
     }
+
+    return result;
 }
  
 
@@ -238,7 +243,7 @@ emscripten::val box_blur(std::vector<int> img, int len, int chanel_width) {
 
 
 
-emscripten::val get_flatten_image(std::vector<int> img) {
+std::vector<int> get_flatten_image(std::vector<int> img) {
 
     int delta = 4;
     size_t simplified_img_len= img.size() / delta;
@@ -249,11 +254,10 @@ emscripten::val get_flatten_image(std::vector<int> img) {
         simplified_image.push_back(img[i]); 
     }
 
-    return emscripten::val(emscripten::typed_memory_view(simplified_img_len, &simplified_image[0]));
+    return simplified_image;
 }
 
-
-emscripten::val get_flatten_image_f(std::vector<double> img) {
+std::vector<double> get_flatten_image_f(std::vector<double> img) {
 
     int delta = 4;
     size_t simplified_img_len= img.size() / delta;
@@ -264,7 +268,8 @@ emscripten::val get_flatten_image_f(std::vector<double> img) {
         simplified_image.push_back(img[i]); 
     }
 
-    return emscripten::val(emscripten::typed_memory_view(simplified_img_len, &simplified_image[0]));
+    return simplified_image;
+    //return emscripten::val(emscripten::typed_memory_view(simplified_img_len, &simplified_image[0]));
 }
 
 
@@ -286,7 +291,7 @@ emscripten::val get_vertical_plot(std::vector<int> simplified_image) {
     return emscripten::val(emscripten::typed_memory_view(step, &vertical_plot[0]));
 }
 
-std::vector<double> get_horizontal_plot(std::vector<int> simplified_image) {
+emscripten::val get_horizontal_plot(std::vector<int> simplified_image) {
 
     int step = 500; //canvas size
     std::vector<double> horizontal_plot;
@@ -300,7 +305,7 @@ std::vector<double> get_horizontal_plot(std::vector<int> simplified_image) {
         horizontal_plot.push_back(sum);
     }
 
-    return horizontal_plot;
+    return emscripten::val(emscripten::typed_memory_view(step, &horizontal_plot[0]));
 }
 
 namespace pompia {
@@ -317,7 +322,7 @@ std::vector<pompia::Point> get_points(std::vector<double> plot){
     int init = 0;
     bool searchingFinal = false;
     double curr = 0;
-    int delta = 5; //precision
+    int delta = 2; //precision
 
     std::vector<pompia::Point> points;
     points.reserve(plot.size());
@@ -345,6 +350,53 @@ std::vector<pompia::Point> get_points(std::vector<double> plot){
 }
 
 
+std::vector<int> resizeNearestNeighboor(std::vector<int> img, int w, int h, int w2, int h2) {
+
+    std::vector<int> dstPixels;
+    dstPixels.reserve(h2 * w2 * 4);
+
+    int pos = 0;
+
+    for(size_t y =0; y < h2; y++) {
+        for(size_t x = 0; x < w2; x++) {
+
+            int srcX = floor( (x * w)  / w2);
+            int srcY = floor( (y * h)  / h2);
+
+            int srcPos = ((srcY * w) + srcX ) * 4;
+
+            dstPixels.push_back(img[srcPos++]);
+            dstPixels.push_back(img[srcPos++]);
+            dstPixels.push_back(img[srcPos++]);
+            dstPixels.push_back(img[srcPos++]);
+        }
+    }
+
+   return dstPixels;
+}
+
+
+
+std::vector<double> normalizeGrayscalePoints(std::vector<double> img) {
+
+    std::vector<double> dstPixels;
+    dstPixels.reserve(728);
+
+    for(size_t i =0; i < img.size(); i++) {
+        double curr = img[i];
+
+        double newValue = (curr - 0) / (1 - 0) * (1 - (-1)) + (-1);
+
+        dstPixels.push_back(newValue);
+
+    }
+
+   return dstPixels;
+}
+
+
+
+
 
 EMSCRIPTEN_BINDINGS (binarization_module) {
     emscripten::function("version", &get_version);
@@ -364,11 +416,12 @@ EMSCRIPTEN_BINDINGS (binarization_module) {
     .field("init", &pompia::Point::init)
     .field("final", &pompia::Point::final);
 
-
     emscripten::function("boxBlur", &box_blur);
     emscripten::function("flatRGBA", &get_flatten_image);
     emscripten::function("flatRGBAFromImageWithPixelRealValues", &get_flatten_image_f); //TODO: improve function name
     emscripten::function("getVerticalPlot", &get_vertical_plot);
     emscripten::function("getHorizontalPlot", &get_horizontal_plot);
     emscripten::function("getPoints", &get_points);
+    emscripten::function("nearestNeighboor", &resizeNearestNeighboor);
+    emscripten::function("normalizeGrayscalePoints", &normalizeGrayscalePoints);
 }

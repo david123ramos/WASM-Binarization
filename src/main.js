@@ -1,6 +1,7 @@
 import wasmModule from './binarization.js';
 import Logger from "./Logger.js";
 
+window.numbers = [];
 
 window.onerror = function(e, src, line, col, error) {
     Logger.log("POMPIA", `ERROR: ${error.name} at line ${line}`);
@@ -69,13 +70,18 @@ wasmModule().then(($wasm) => {
             dataGrayscale = grayscaleWASM(imageData.data);
         }
 
-
         const simplified = flattenFloatChanels([...dataGrayscale.grayscaleImage]);
 
         const dataOtsu = otsusThresholdingWASM(simplified);
-        binarizationWASM(dataGrayscale.originalImage, dataGrayscale.grayscalePointer, dataOtsu.threshold, this.src)
+        const binarizatedVector = binarizationWASM(dataGrayscale.originalImage, dataGrayscale.grayscalePointer, dataOtsu.threshold, this.src)
 
-        const finalResultImg = [...$wasm.HEAPF32.subarray((dataGrayscale.grayscalePointer >> 2 ) , (dataGrayscale.grayscalePointer >> 2) + dataGrayscale.originalImage.length)]; 
+        const finalResultImg = [];
+
+        for(let  i= 0; i< binarizatedVector.size(); i++) {
+            finalResultImg.push(binarizatedVector.get(i));
+        }
+
+        const grayscaleImage = [...$wasm.HEAPF32.subarray((dataGrayscale.grayscalePointer >> 2 ) , (dataGrayscale.grayscalePointer >> 2) + dataGrayscale.originalImage.length)]; 
 
         const t0 = performance.now();
         const simplifiedImageBinarizated = flattenChanels(finalResultImg);
@@ -140,7 +146,7 @@ wasmModule().then(($wasm) => {
 
         
         const tf = performance.now();
-        Logger.log("JAVASCRIPT" , `Finding ROI algorithm took ${tf - t0} mils`)
+        Logger.log("JAVASCRIPT" , `Finding ROI algorithm took ${tf - t0} mils`);
 
         document.querySelector(".container").appendChild(generateVerticalHistogram(verticalPlot , step, step));
         document.querySelector(".container").appendChild(generateHorizontalHistogram(horizontalPlot, step, step));
@@ -168,9 +174,13 @@ wasmModule().then(($wasm) => {
                     y = verticalPoint.init;
                     width =  pointsAuxHorizontal[i].final - pointsAuxHorizontal[i].init;
                     height = verticalPoint.final - verticalPoint.init
-
-                    if(width >= 30 && height >= 30) {
-                        ctx.strokeRect(x, y, width, height);
+ 
+                    if(width >= 10 && height >= 10) {
+                        const number = {
+                            x,y,width, height
+                        };
+                        numbers.push(number);
+                        
                     }
                     
 
@@ -190,8 +200,12 @@ wasmModule().then(($wasm) => {
                     height = pointsAuxVertical[i].final - pointsAuxVertical[i].init
 
                     
-                    if(width >= 30 && height >= 30) {
-                        ctx.strokeRect(x, y, width, height);
+                    if(width >= 10 && height >= 10) {
+                        const number = {
+                            x,y,width, height
+                        };
+                        numbers.push(number);
+                        
                     }
 
                     if( (pointsAuxHorizontal.length - 1)  > curr ) curr++;
@@ -199,14 +213,59 @@ wasmModule().then(($wasm) => {
 
             }
 
-            ctx.fill();
+            numbers.forEach(number => {
+                const cv2 = document.createElement("canvas");
+                cv2.classList.add("cv");
+                cv2.width = number.width;
+                cv2.height = number.height;
+
+                debugger;
+                const imdt = ctx.getImageData(number.x, number.y, number.width, number.height);
+
+                const rz = resized(imdt.data, imdt.width, imdt.height, 28, 28);
+                writeInCanvas2(rz, 28, 28).then(canvas => {
+                    document.body.querySelector(".container").appendChild(canvas);
+                });
+
+                // const start = (500 * number.x) + number.x;
+                // const largura = start + (number.width - 1);
+                // var final = largura + ((number.height -1) * 500 );
+                // const cuttedGrayscale = []
+
+                // for(let posY = start; posY < final; posY += 500) {
+                //     for(let posX = posY; posX < posY + number.width; posX++) {
+                //         cuttedGrayscale.push( simplified[posX] );
+                //     }
+                // }
+
+                // const resizedImage = resized(cuttedGrayscale, number.width, number.height, 28, 28);
+                // normalizeGrayscalePoints(resizedImage);
+                ctx.strokeRect(number.x, number.y, number.width, number.height);
+            });
+
         });
-
-
         dataGrayscale.free();
         dataOtsu.free();
-        
     };
+
+    function normalizeGrayscalePoints(pixels) {
+        
+        const vector = new $wasm.vector(); 
+        pixels.forEach(val => vector.push_back(val));
+        
+        const t1 = performance.now();
+        const response =  $wasm.normalizeGrayscalePoints(vector, vector.size(), 500);
+        const t2 = performance.now();
+        Logger.log("WEBASSEMBLY", `normalize grayscale algorithm took ${t2 - t1} mils `);
+
+        const r = [];
+
+        for(let i =0; i < response.size(); i++) {
+            r.push(response.get(i));
+        }
+
+        return r;
+    }
 
     function generateVerticalHistogram(arr, width, height) {
         const cv = document.createElement("canvas");
@@ -274,6 +333,21 @@ wasmModule().then(($wasm) => {
             resolve(canvas);
         });
     }
+    function writeInCanvas2(data, w, h){
+
+        return new Promise((resolve, reject) => {
+            const canvas = document.createElement("canvas");
+            canvas.width = w;
+            canvas.height = h;
+            canvas.classList.add("cv");
+    
+            var context = canvas.getContext("2d");
+            var imageData = context.createImageData(w, h);
+            imageData.data.set(data);
+            context.putImageData(imageData, 0, 0);
+            resolve(canvas);
+        });
+    }
 
     function boxBlur(pixels) {
 
@@ -298,7 +372,13 @@ wasmModule().then(($wasm) => {
         const t2 = performance.now();
         Logger.log("WEBASSEMBLY", `Flatten RGBA (auxiliary function) took: ${t2 - t1} mils`);
 
-        return [...response];
+        const r = [];
+
+        for(let i =0; i < response.size(); i++) {
+            r.push(response.get(i));
+        }
+
+        return r;
     }
 
     function getVerticalPlot(pixels) {
@@ -322,14 +402,14 @@ wasmModule().then(($wasm) => {
         const t2 = performance.now();
         Logger.log("WEBASSEMBLY", `get horizontal plot took: ${t2 - t1} mils`);
 
-        const r = [];
+        // const r = [];
 
-        for(let i =0; i < response.size(); i++) {
-            r.push(response.get(i));
-        }
+        // for(let i =0; i < response.size(); i++) {
+        //     r.push(response.get(i));
+        // }
 
-        return r;
-        //return [...response];
+        // return r;
+        return [...response];
     }
 
     function getPoints(pixels) {
@@ -358,9 +438,36 @@ wasmModule().then(($wasm) => {
         const t1 = performance.now();
         const  response = $wasm.flatRGBAFromImageWithPixelRealValues(vector);
         const t2 = performance.now();
+
+        const r = [];
+
+        for(let i =0; i < response.size(); i++) {
+            r.push(response.get(i));
+        }
+
         Logger.log("WEBASSEMBLY", `Flatten RGBA (with Double values) [auxiliary function] took: ${t2 - t1} mils`);
 
-        return response;
+        return new Float32Array(r);
+    }
+
+    function resized(pixels, w, h, w2, h2) {
+        
+        const vector = new $wasm.vector();
+        pixels.forEach(val => vector.push_back(val));
+        
+        const t1 = performance.now();
+        const  response = $wasm.nearestNeighboor(vector, w, h, w2, h2);
+        const t2 = performance.now();
+
+        const r = [];
+
+        for(let i =0; i < response.size(); i++) {
+            r.push(response.get(i));
+        }
+
+        Logger.log("WEBASSEMBLY", `Nearest neighboor took: ${t2 - t1} mils`);
+
+        return new Float32Array(r);
     }
 
 
@@ -407,21 +514,10 @@ wasmModule().then(($wasm) => {
 
     function binarizationWASM(originalImage, grayscaleImagePointer, threshold ) {
         const performanceBinarizationt0 = performance.now();
-        $wasm.binarizationFloat(grayscaleImagePointer, threshold, originalImage.length);
+        const result = $wasm.binarizationFloat(grayscaleImagePointer, threshold, originalImage.length);
         const performanceBinarizationtf = performance.now();
         Logger.log("WEBASSEMBLY", `Image binarization took ${performanceBinarizationtf - performanceBinarizationt0} mils `)
+        return result;
     }
-
-    function rgba2OneGrayscaleChanelWASM(grayscaleImagePointer, len) {
-        const performanceArraySimplificationt0 = performance.now();
-        const r = $wasm.reduceRGBA2OneChanel(grayscaleImagePointer, len);
-        
-        const performanceArraySimplificationtf = performance.now();
-        Logger.log("WEBASSEMBLY", `Image chanel flatting (auxiliary function) took ${performanceArraySimplificationtf - performanceArraySimplificationt0} mils `)
-
-        return r;
-    }
-    
-
     
 });
