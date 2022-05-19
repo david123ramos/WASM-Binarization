@@ -9,6 +9,7 @@
 #include <emscripten/bind.h>
 #include "emscripten.h"
 #include <time.h>
+#include "rn.cpp"
 
 
 double get_version() {
@@ -374,6 +375,30 @@ std::vector<int> resizeNearestNeighboor(std::vector<int> img, int w, int h, int 
 
    return dstPixels;
 }
+std::vector<double> resizeNearestNeighboorDouble(std::vector<double> img, int w, int h, int w2, int h2) {
+
+    std::vector<double> dstPixels;
+    dstPixels.reserve(h2 * w2 * 4);
+
+    int pos = 0;
+
+    for(size_t y =0; y < h2; y++) {
+        for(size_t x = 0; x < w2; x++) {
+
+            int srcX = floor( (x * w)  / w2);
+            int srcY = floor( (y * h)  / h2);
+
+            int srcPos = ((srcY * w) + srcX ) * 4;
+
+            dstPixels.push_back(img[srcPos++]);
+            dstPixels.push_back(img[srcPos++]);
+            dstPixels.push_back(img[srcPos++]);
+            dstPixels.push_back(img[srcPos++]);
+        }
+    }
+
+   return dstPixels;
+}
 
 
 
@@ -423,5 +448,7 @@ EMSCRIPTEN_BINDINGS (binarization_module) {
     emscripten::function("getHorizontalPlot", &get_horizontal_plot);
     emscripten::function("getPoints", &get_points);
     emscripten::function("nearestNeighboor", &resizeNearestNeighboor);
+    emscripten::function("nearestNeighboorDouble", &resizeNearestNeighboorDouble);
     emscripten::function("normalizeGrayscalePoints", &normalizeGrayscalePoints);
+    emscripten::function("classify", &classify);
 }
