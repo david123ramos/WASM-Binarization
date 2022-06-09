@@ -3,9 +3,13 @@ import Logger from "./Logger.js";
 
 window.numbers = [];
 
-window.onerror = function(e, src, line, col, error) {
+window.onerror = function (e, src, line, col, error) {
     Logger.log("POMPIA", `ERROR: ${error.name} at line ${line}`);
 }
+var StartTime = 0;
+var FinalTime = 0;
+var Sum = 0;
+
 
 wasmModule().then(($wasm) => {
     console.log(`It works! Version ${$wasm.version()}`);
@@ -13,15 +17,41 @@ wasmModule().then(($wasm) => {
 
     //bind _malloc to remeber to use free
     (function () {
-        var oldmalloc = $wasm._malloc;    
+        var oldmalloc = $wasm._malloc;
         $wasm._malloc = function (size) {
             console.trace("WARNING - Malloc use require 'free' function use too. Don't forget");
             return oldmalloc(size);
         }
     })();
-    
+
 
     const img = new Image();
+
+    var folder = 1;
+    var folder_limit = 7;
+    var limit_img = 2019;
+    var counter = 1;
+
+    var interval = setInterval(function () {
+        
+        img.src = `http://localhost:8081/${folder}/synthetic_mnist_${counter}.png`
+
+       ++counter;
+       console.log(Sum)
+
+       if(counter > limit_img) {
+           counter = 0;
+           ++folder;
+       }
+
+       if(folder > folder_limit){
+           clearInterval(interval);
+       }
+
+    }, 1500);
+    
+
+    img.crossOrigin = "Anonymous"
     document.querySelector("#imagefile").addEventListener("change", e => {
 
         const imgFile = e.target.files[0];
@@ -33,13 +63,13 @@ wasmModule().then(($wasm) => {
             }
             fileReader.readAsDataURL(imgFile);
 
-        }else {
+        } else {
             alert("Failed to load File API");
         }
-        
+
     });
-    
-    
+
+
     //img.src = "./assets/a.jpeg"; //sign
     //img.src = "./assets/manynumbers (1).jpeg"
     //img.src = "./assets/bad5.jpeg" //light correction
@@ -54,19 +84,20 @@ wasmModule().then(($wasm) => {
     globalContext.fillStyle = "#fff"
     globalContext.fillRect(0, 0, cv.width, cv.height);
 
-    img.onload = function() {
+    img.onload = function () {
         globalContext.drawImage(this, 0, 0, 500, 500);
 
-        const imageData = globalContext.getImageData(0,0, cv.width, cv.height);
+        const imageData = globalContext.getImageData(0, 0, cv.width, cv.height);
 
         const needsBlur = document.querySelector("#blur_checkbox").checked;
 
         let dataGrayscale = null;
-        if(needsBlur) {
+        StartTime = performance.now();
+        if (needsBlur) {
             const blurredImage = boxBlur(imageData.data);
             writeInCanvas(blurredImage).then(canvas => document.querySelector(".container").appendChild(canvas));
             dataGrayscale = grayscaleWASM(blurredImage);
-        }else{
+        } else {
             dataGrayscale = grayscaleWASM(imageData.data);
         }
 
@@ -77,13 +108,12 @@ wasmModule().then(($wasm) => {
 
         const finalResultImg = [];
 
-        for(let  i= 0; i< binarizatedVector.size(); i++) {
+        for (let i = 0; i < binarizatedVector.size(); i++) {
             finalResultImg.push(binarizatedVector.get(i));
         }
+        binarizatedVector.delete();
 
-        const grayscaleImage = [...$wasm.HEAPF32.subarray((dataGrayscale.grayscalePointer >> 2 ) , (dataGrayscale.grayscalePointer >> 2) + dataGrayscale.originalImage.length)]; 
 
-        const t0 = performance.now();
         const simplifiedImageBinarizated = flattenChanels(finalResultImg);
 
         const step = 500; // canvas width
@@ -101,10 +131,10 @@ wasmModule().then(($wasm) => {
 
 
         const pointsAuxVertical = getPoints(verticalPlot);
-        
+
         // let searchingFinal = false;
         // for(let i = 0; i < verticalPlot.length; i++) {
-            
+
         //     if(verticalPlot[i]  > delta && !searchingFinal) {
         //         init = i;
         //         searchingFinal = true
@@ -132,7 +162,7 @@ wasmModule().then(($wasm) => {
         // let initHorizontal = 0;
         // let searchingFinalHoriz = false;
         // for(let i = 0; i < horizontalPlot.length; i++) {
-            
+
         //     if(horizontalPlot[i]  > delta && !searchingFinalHoriz) {
         //         initHorizontal = i;
         //         searchingFinalHoriz = true
@@ -144,15 +174,16 @@ wasmModule().then(($wasm) => {
         //     }
         // }
 
-        
-        const tf = performance.now();
-        Logger.log("JAVASCRIPT" , `Finding ROI algorithm took ${tf - t0} mils`);
 
-        document.querySelector(".container").appendChild(generateVerticalHistogram(verticalPlot , step, step));
-        document.querySelector(".container").appendChild(generateHorizontalHistogram(horizontalPlot, step, step));
+
+
+        if (document.querySelector("#histogram_checkbox").checked) {
+            document.querySelector(".container").appendChild(generateVerticalHistogram(verticalPlot, step, step));
+            document.querySelector(".container").appendChild(generateHorizontalHistogram(horizontalPlot, step, step));
+        }
 
         writeInCanvas(finalResultImg).then(canvas => {
-            document.querySelector(".container").appendChild(canvas);
+            //document.querySelector(".container").appendChild(canvas); &&
 
             const ctx = canvas.getContext("2d");
             ctx.strokeStyle = "#03fc30" // light green
@@ -160,55 +191,53 @@ wasmModule().then(($wasm) => {
             ctx.font = "20px Arial";
             let x = 0;
             let y = 0;
-            let width =0;
+            let width = 0;
             let height = 0;
 
-            if(pointsAuxHorizontal.length > pointsAuxVertical.length) {
+            if (pointsAuxHorizontal.length > pointsAuxVertical.length) {
 
                 let curr = 0;
-                for(let i =0; i < pointsAuxHorizontal.length; i++) {
+                for (let i = 0; i < pointsAuxHorizontal.length; i++) {
 
                     var verticalPoint = pointsAuxVertical[curr];
 
                     x = pointsAuxHorizontal[i].init;
                     y = verticalPoint.init;
-                    width =  pointsAuxHorizontal[i].final - pointsAuxHorizontal[i].init;
+                    width = pointsAuxHorizontal[i].final - pointsAuxHorizontal[i].init;
                     height = verticalPoint.final - verticalPoint.init
- 
-                    if(width >= 10 && height >= 10) {
+
+                    if (width >= 10 && height >= 10) {
                         const number = {
-                            x,y,width, height
+                            x, y, width, height
                         };
                         numbers.push(number);
-                        
-                    }
-                    
 
-                    if( (pointsAuxVertical.length - 1)  > curr ) curr++;
+                    }
+
+                    if ((pointsAuxVertical.length - 1) > curr) curr++;
                 }
 
-            }else {
+            } else {
 
                 let curr = 0;
-                for(let i =0; i < pointsAuxVertical.length; i++) {
+                for (let i = 0; i < pointsAuxVertical.length; i++) {
 
                     var horizontalPoint = pointsAuxHorizontal[curr];
 
                     x = horizontalPoint.init;
                     y = pointsAuxVertical[i].init;
-                    width =  horizontalPoint.final - horizontalPoint.init;
+                    width = horizontalPoint.final - horizontalPoint.init;
                     height = pointsAuxVertical[i].final - pointsAuxVertical[i].init
 
-                    
-                    if(width >= 10 && height >= 10) {
+
+                    if (width >= 10 && height >= 10) {
                         const number = {
-                            x,y,width, height
+                            x, y, width, height
                         };
                         numbers.push(number);
-                        
                     }
 
-                    if( (pointsAuxHorizontal.length - 1)  > curr ) curr++;
+                    if ((pointsAuxHorizontal.length - 1) > curr) curr++;
                 }
 
             }
@@ -219,883 +248,134 @@ wasmModule().then(($wasm) => {
                 cv2.width = number.width;
                 cv2.height = number.height;
 
-                const imdt = ctx.getImageData(number.x, number.y, number.width, number.height);
+                const pd = 20;
+                const imdt = ctx.getImageData(number.x - pd, number.y - pd, number.width + (2 * pd), number.height + (2 * pd));
+
 
                 const newSize = 28;
-                const rz = resized(imdt.data, imdt.width, imdt.height, newSize, newSize);                
+                const rz = resized(imdt.data, imdt.width, imdt.height, newSize, newSize);
 
-                writeInCanvas2(rz, newSize, newSize).then(canvas => {
+                writeInCanvas2(rz, 28, 28).then(canvas => {
 
                     const div = document.createElement("span");
                     div.id = `tooltip-${index}`;
-                    canvas.appendChild(div);
+                    //canvas.appendChild(div); &&
 
                     const container = document.createElement("div");
-                    container.appendChild(div);
-                    container.appendChild(canvas);
+                    //container.appendChild(div); &&
+                    //container.appendChild(canvas); &&
 
-                    document.body.querySelector(".container").appendChild(container);
+                    //document.body.querySelector(".container").appendChild(container); &&
 
-                  
+                    //var aa = new $wasm.RealVector();
 
-                    const start = (500 * number.y) + number.x;
-                    const largura = start + (number.width - 1);
-                    var final = largura + ((number.height -1) * 500 );
-                    const cuttedGrayscale = []
-    
-                    for(let posY = start; posY < final; posY += 500) {
-                        for(let posX = posY; posX < posY + number.width; posX++) {
-                            cuttedGrayscale.push( simplified[posX] );
+                    const vv = canvas.getContext("2d");
+
+                    const vvimg = rotateImage(vv).data;
+
+                    var aa = normalizeImage(vvimg);
+                    // for(let i =0; i < vvimg.length; i+= 4) {
+
+                    //     var pr = vvimg[i] == 0 ? 0 : 1;
+                    //     var pg = vvimg[i + 1] == 0 ? 0 : 1;
+                    //     var pb = vvimg[i + 2] == 0 ? 0 : 1;
+
+                    //     var brightness = (pr + pg + pb) / 3; 
+
+                    //     brightness = (brightness -.5) / 0.5;
+                    //     aa.push_back(brightness);
+                    // }
+
+                    aa = reflect(aa);
+
+                    /**
+                     * this piece of code is used to draw pixel values on a table.
+                     */
+                    if (document.querySelector("#show-debug-table").checked) {
+                        var v = []
+                        for (let i = 0; i < aa.size(); i++) {
+                            v.push(aa.get(i));
+                        }
+
+
+                        var row = document.createElement("tr");
+                        for (let a = 0; a < v.length; a++) {
+                            const square = document.createElement("td");
+
+                            var c1 = v[a] > 0 ? "bg-dark" : "bg-light";
+                            var c2 = v[a] > 0 ? "text-light" : "text-dark";
+                            square.classList.add("square", c1, c2);
+                            square.innerText = v[a];
+
+                            row.appendChild(square);
+
+                            if (a > 0 && a % 28 == 0) {
+                                document.querySelector("#neural-data-visualization").appendChild(row);
+                                row = document.createElement("tr");
+                            }
                         }
                     }
 
-                    var image = [
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -0.96,
-                        -0.020000000000000018,
-                        0.6799999999999999,
-                        1,
-                        0.9199999999999999,
-                        0.30000000000000004,
-                        -0.72,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -0.94,
-                        -0.10000000000000009,
-                        0.3999999999999999,
-                        0.3999999999999999,
-                        0.28,
-                        -0.020000000000000018,
-                        -0.32000000000000006,
-                        -0.78,
-                        -1,
-                        -1,
-                        -1,
-                        0.3199215686274508,
-                        1,
-                        1,
-                        1,
-                        1,
-                        1,
-                        0.8799999999999999,
-                        -0.6399999999999999,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        0.33992156862745104,
-                        1,
-                        1,
-                        1,
-                        0.999921568627451,
-                        1,
-                        1,
-                        1,
-                        0.43999999999999995,
-                        -0.5600784313725489,
-                        -0.14007843137254916,
-                        0.999921568627451,
-                        0.98,
-                        -0.15999999999999992,
-                        -0.78,
-                        -0.52,
-                        0.7,
-                        1,
-                        0.6000000000000001,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -0.8400000000000001,
-                        1,
-                        1,
-                        -0.020000000000000018,
-                        -0.19999999999999996,
-                        -0.08000000000000007,
-                        0.21992156862745116,
-                        0.6200000000000001,
-                        0.979921568627451,
-                        1,
-                        0.979921568627451,
-                        0.98,
-                        0.999921568627451,
-                        -0.10000000000000009,
-                        -1,
-                        -1,
-                        -1,
-                        -0.74,
-                        1,
-                        1,
-                        -0.8400000000000001,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -0.6000000000000001,
-                        1,
-                        0.8599999999999999,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -0.72,
-                        0.5800000000000001,
-                        1,
-                        1,
-                        0.5,
-                        -0.98,
-                        -1,
-                        -1,
-                        -1,
-                        -0.32000000000000006,
-                        1,
-                        0.98,
-                        -0.9199999999999999,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -0.8600000000000001,
-                        0.98,
-                        1,
-                        -0.54,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -0.30000000000000004,
-                        0.9199999999999999,
-                        1,
-                        1,
-                        0.9399215686274509,
-                        -0.6799999999999999,
-                        -1,
-                        -1,
-                        -1,
-                        0.8,
-                        1,
-                        0.21999999999999997,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        0.31999999999999984,
-                        1,
-                        0.9199999999999999,
-                        0.020000000000000018,
-                        -0.19999999999999996,
-                        0,
-                        0.6799999999999999,
-                        1,
-                        1,
-                        0.54,
-                        0.45999999999999996,
-                        1,
-                        0.6200000000000001,
-                        -0.96,
-                        -1,
-                        -1,
-                        0.6400000000000001,
-                        0.999921568627451,
-                        -0.21999999999999997,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -0.8400000000000001,
-                        0.6000000000000001,
-                        0.999921568627451,
-                        1,
-                        1,
-                        1,
-                        0.999921568627451,
-                        0.9199999999999999,
-                        0.040000000000000036,
-                        -0.94,
-                        -0.76,
-                        0.8599215686274511,
-                        1,
-                        0.18000000000000016,
-                        -1,
-                        -0.8999999999999999,
-                        0.78,
-                        1,
-                        -0.3999999999999999,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -0.94,
-                        -0.21999999999999997,
-                        0.28,
-                        0.3999999999999999,
-                        0.30000000000000004,
-                        -0.21999999999999997,
-                        -0.8799999999999999,
-                        -1,
-                        -1,
-                        -1,
-                        -0.28,
-                        1,
-                        1,
-                        0.24,
-                        0.3799999999999999,
-                        1,
-                        0.8200000000000001,
-                        -0.94,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -0.06000000000000005,
-                        1,
-                        1,
-                        1,
-                        0.98,
-                        -0.3799999999999999,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -0.3400000000000001,
-                        0.56,
-                        0.3799999999999999,
-                        -0.5,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1,
-                        -1
-                    ]
+                    const num = classify(aa);
 
-                    const aa = [];
-
-                    for(let i =0; i < rz.length; i+= 4) {
-
-                        var pr = rz[i] == 0 ? 255 : 0;
-                        var pg = rz[i + 1] == 0 ? 255 : 0;
-                        var pb = rz[i + 2] == 0 ? 255 : 0;
-
-                        var brightness = (0.2125 * pr) + (0.7154 *  pg)  + (0.0721 *  pb); 
-                        var newValue = (brightness - 0) * (1 - (-1)) / (255 - 0) + (-1);
-                        aa.push(newValue);
-                    }
-
-
-    
-                    const vector = new $wasm.RealVector(); 
-                    aa.forEach(val => vector.push_back(val));
-                    
-                    const resizedImage = resizedDouble(cuttedGrayscale, number.width, number.height, 28, 28);
-                    const flattenImage = flattenFloatChanels(resizedImage);
-                    const normalizedTinyImage = normalizeGrayscalePoints(flattenImage);
-                    const num = $wasm.classify(vector);
-                    //const num = $wasm.classify(normalizedTinyImage.vector);
-                    //writeInCanvas(resizedImage).then(cv => document.querySelector(".container").appendChild(cv));
-
-                    const tooltip = document.querySelector(`#tooltip-${index}`);
-                    tooltip.innerHTML = num;
-                    tooltip.classList.add("text-dark");
-
+                    aa.delete();
+                    console.log(`Result: ${num}`)
+                   
+                   // const tooltip = document.querySelector(`#tooltip-${index}`);
+                    //tooltip.innerHTML = `I think this is a <strong>${num}</strong>! 🙂`;
+                    //tooltip.classList.add("text-dark", "badge", "bg-warning");
 
                 });
 
-                
-
                 ctx.strokeRect(number.x, number.y, number.width, number.height);
             });
+
+            FinalTime = performance.now();
+            var calctime = FinalTime - StartTime;
+
+            Sum += calctime
+
+            console.log("ALL PROCESS", `ALL Process took ${calctime} mils`);
+            window.numbers = [];
 
         });
         dataGrayscale.free();
         dataOtsu.free();
     };
 
-    function normalizeGrayscalePoints(pixels) {
-        
-        const vector = new $wasm.RealVector(); 
-        pixels.forEach(val => vector.push_back(val));
-        
-        const t1 = performance.now();
-        const response =  $wasm.normalizeGrayscalePoints(vector);
-        const t2 = performance.now();
-        Logger.log("WEBASSEMBLY", `normalize grayscale algorithm took ${t2 - t1} mils `);
 
-        const r = [];
-
-        for(let i =0; i < response.size(); i++) {
-            r.push(response.get(i));
+    function rotateImage(ctx) {
+        const size = 28;
+        // the rotation origin    
+        const ox = 14;
+        const oy = 14;
+        // the rotation amount
+        const rot = Math.PI / 2; // 90 deg
+        // the rotated x axis
+        const ax = Math.cos(rot);
+        const ay = Math.sin(rot);
+        // get the source pixel data
+        const imageData = ctx.getImageData(0, 0, size, size);
+        const d32 = new Uint32Array(imageData.data.buffer);
+        // create a destination pixel array
+        const rotImageData = new Uint32Array(imageData.data.length / 4);
+        // scan each pixel and row adding pixels to rotImageData from the transformed
+        // x,y coordinate.
+        for (let y = 0; y < size; y += 1) {
+            for (let x = 0; x < size; x += 1) {
+                const ind = (x + y * size);
+                // transform the current pixel to the rotated pixel
+                const rx = (x - ox) * ax - (y - oy) * ay + ox;
+                const ry = (x - ox) * ay + (y - oy) * ax + oy;
+                // use nearest pixel lookup and get index of original image
+                const ind1 = ((rx | 0) + (ry | 0) * size);
+                rotImageData[ind] = d32[ind1];
+            }
         }
-
-        return {vector: response, array: r} ;
+        d32.set(rotImageData);
+        return imageData;
     }
+
 
     function generateVerticalHistogram(arr, width, height) {
         const cv = document.createElement("canvas");
@@ -1112,8 +392,8 @@ wasmModule().then(($wasm) => {
         ctx.fillStyle = "white";
         ctx.font = "20px Arial";
         ctx.fillText("vertical", 15, 20);
-        
-        for(let i = 0; i < arr.length; i++) {
+
+        for (let i = 0; i < arr.length; i++) {
             ctx.beginPath();
             ctx.moveTo(0, i);
             ctx.lineTo(arr[i], i);
@@ -1122,15 +402,15 @@ wasmModule().then(($wasm) => {
         return cv
     }
 
-    function generateHorizontalHistogram(arr, width, height) {  
+    function generateHorizontalHistogram(arr, width, height) {
         const cv = document.createElement("canvas");
         cv.classList.add("cv");
         cv.width = width;
         cv.height = height;
         cv.style.marginLeft = "5px";
-        
+
         const ctx = cv.getContext("2d");
-        
+
         ctx.fillStyle = "black";
         ctx.fillRect(0, 0, cv.width, cv.height);
         ctx.lineWidth = 2;
@@ -1138,8 +418,8 @@ wasmModule().then(($wasm) => {
         ctx.fillStyle = "white";
         ctx.font = "20px Arial";
         ctx.fillText("horizontal", 15, 20);
-        
-        for(let i = 0; i < arr.length; i++) {
+
+        for (let i = 0; i < arr.length; i++) {
             ctx.beginPath();
             ctx.moveTo(i, height);
             ctx.lineTo(i, height - arr[i]);
@@ -1148,14 +428,14 @@ wasmModule().then(($wasm) => {
         return cv
     }
 
-    function writeInCanvas(data){
+    function writeInCanvas(data) {
 
         return new Promise((resolve, reject) => {
             const canvas = document.createElement("canvas");
             canvas.width = 500;
             canvas.height = 500;
             canvas.classList.add("cv");
-    
+
             var context = canvas.getContext("2d");
             var imageData = context.createImageData(500, 500);
             imageData.data.set(data);
@@ -1163,14 +443,14 @@ wasmModule().then(($wasm) => {
             resolve(canvas);
         });
     }
-    function writeInCanvas2(data, w, h){
+    function writeInCanvas2(data, w, h) {
 
         return new Promise((resolve, reject) => {
             const canvas = document.createElement("canvas");
             canvas.width = w;
             canvas.height = h;
             canvas.classList.add("cv");
-    
+
             var context = canvas.getContext("2d");
             var imageData = context.createImageData(w, h);
             imageData.data.set(data);
@@ -1181,14 +461,14 @@ wasmModule().then(($wasm) => {
 
     function boxBlur(pixels) {
 
-        const vector = new $wasm.vector(); 
+        const vector = new $wasm.vector();
         pixels.forEach(val => vector.push_back(val));
-        
+
         const t1 = performance.now();
-        const response =  $wasm.boxBlur(vector, vector.size(), 500);
+        const response = $wasm.boxBlur(vector, vector.size(), 500);
         const t2 = performance.now();
         Logger.log("WEBASSEMBLY", `Box Blur algorithm took ${t2 - t1} mils `);
-        
+
         return response;
     }
 
@@ -1196,18 +476,19 @@ wasmModule().then(($wasm) => {
 
         const vector = new $wasm.vector();
         pixels.forEach(val => vector.push_back(val));
-        
+
         const t1 = performance.now();
-        const  response = $wasm.flatRGBA(vector);
+        const response = $wasm.flatRGBA(vector);
         const t2 = performance.now();
         Logger.log("WEBASSEMBLY", `Flatten RGBA (auxiliary function) took: ${t2 - t1} mils`);
 
         const r = [];
 
-        for(let i =0; i < response.size(); i++) {
+        for (let i = 0; i < response.size(); i++) {
             r.push(response.get(i));
         }
-
+        vector.delete();
+        response.delete();
         return r;
     }
 
@@ -1219,7 +500,7 @@ wasmModule().then(($wasm) => {
         const response = $wasm.getVerticalPlot(vector);
         const t2 = performance.now();
         Logger.log("WEBASSEMBLY", `get vertical plot took: ${t2 - t1} mils`);
-
+        vector.delete();
         return [...response];
     }
 
@@ -1231,14 +512,7 @@ wasmModule().then(($wasm) => {
         const response = $wasm.getHorizontalPlot(vector);
         const t2 = performance.now();
         Logger.log("WEBASSEMBLY", `get horizontal plot took: ${t2 - t1} mils`);
-
-        // const r = [];
-
-        // for(let i =0; i < response.size(); i++) {
-        //     r.push(response.get(i));
-        // }
-
-        // return r;
+        vector.delete();
         return [...response];
     }
 
@@ -1253,10 +527,11 @@ wasmModule().then(($wasm) => {
 
         const r = [];
 
-        for(let i =0; i < response.size(); i++) {
+        for (let i = 0; i < response.size(); i++) {
             r.push(response.get(i));
         }
-
+        vector.delete();
+        response.delete();
         return r;
     }
 
@@ -1264,16 +539,18 @@ wasmModule().then(($wasm) => {
 
         const vector = new $wasm.RealVector();
         pixels.forEach(val => vector.push_back(val));
-        
+
         const t1 = performance.now();
-        const  response = $wasm.flatRGBAFromImageWithPixelRealValues(vector);
+        const response = $wasm.flatRGBAFromImageWithPixelRealValues(vector);
         const t2 = performance.now();
 
         const r = [];
 
-        for(let i =0; i < response.size(); i++) {
+        for (let i = 0; i < response.size(); i++) {
             r.push(response.get(i));
         }
+        vector.delete();
+        response.delete();
 
         Logger.log("WEBASSEMBLY", `Flatten RGBA (with Double values) [auxiliary function] took: ${t2 - t1} mils`);
 
@@ -1281,45 +558,26 @@ wasmModule().then(($wasm) => {
     }
 
     function resized(pixels, w, h, w2, h2) {
-        
+
         const vector = new $wasm.vector();
         pixels.forEach(val => vector.push_back(val));
-        
+
         const t1 = performance.now();
-        const  response = $wasm.nearestNeighboor(vector, w, h, w2, h2);
+        const response = $wasm.nearestNeighboor(vector, w, h, w2, h2);
         const t2 = performance.now();
 
         const r = [];
 
-        for(let i =0; i < response.size(); i++) {
+        for (let i = 0; i < response.size(); i++) {
             r.push(response.get(i));
         }
 
         Logger.log("WEBASSEMBLY", `Nearest neighboor took: ${t2 - t1} mils`);
+        vector.delete();
+        response.delete();
 
         return new Float32Array(r);
     }
-
-    function resizedDouble(pixels, w, h, w2, h2) {
-        
-        const vector = new $wasm.RealVector();
-        pixels.forEach(val => vector.push_back(val));
-        
-        const t1 = performance.now();
-        const  response = $wasm.nearestNeighboorDouble(vector, w, h, w2, h2);
-        const t2 = performance.now();
-
-        const r = [];
-
-        for(let i =0; i < response.size(); i++) {
-            r.push(response.get(i));
-        }
-
-        Logger.log("WEBASSEMBLY", `Nearest neighboor float took: ${t2 - t1} mils`);
-
-        return new Float32Array(r);
-    }
-
 
     function grayscaleWASM(pixels) {
 
@@ -1331,43 +589,71 @@ wasmModule().then(($wasm) => {
         $wasm.grayscale2(heapPointer, floatArr.length);
         const performanceGrayscaletf = performance.now();
         Logger.log("WEBASSEMBLY", `Grayscale algorithm took ${performanceGrayscaletf - performanceGrayscalet0} mils`)
-        
+
         return {
             originalImage: floatArr,
-            grayscaleImage: $wasm.HEAPF32.subarray((heapPointer >> 2 ) , (heapPointer >> 2) + floatArr.length),
+            grayscaleImage: $wasm.HEAPF32.subarray((heapPointer >> 2), (heapPointer >> 2) + floatArr.length),
             grayscalePointer: heapPointer,
-            free : function() {
+            free: function () {
                 $wasm._free(heapPointer);
             }
         };
-  
+
     }
 
 
     function otsusThresholdingWASM(simplifiedImage) {
-        
-        const pointerSimplifiedImageFloat = $wasm._malloc(simplifiedImage.length *  simplifiedImage.BYTES_PER_ELEMENT);
+
+        const pointerSimplifiedImageFloat = $wasm._malloc(simplifiedImage.length * simplifiedImage.BYTES_PER_ELEMENT);
         $wasm.HEAPF32.set(simplifiedImage, pointerSimplifiedImageFloat >> 2);
-        
+
         const performanceOtsusAlgorithmt0 = performance.now();
         const otsusThresholdFloat = $wasm.otsusThreasholdValueFloat(pointerSimplifiedImageFloat, simplifiedImage.length);
         const performanceOtsusAlgorithmtf = performance.now();
         Logger.log("WEBASSEMBLY", `Otsu's thresholding algorithm took ${performanceOtsusAlgorithmtf - performanceOtsusAlgorithmt0} mils and returned ${otsusThresholdFloat} as value`)
 
-        return  { 
-                threshold: otsusThresholdFloat, 
-                free : function() {
-                    $wasm._free(pointerSimplifiedImageFloat);
-                }
+        return {
+            threshold: otsusThresholdFloat,
+            free: function () {
+                $wasm._free(pointerSimplifiedImageFloat);
+            }
         };
     }
 
-    function binarizationWASM(originalImage, grayscaleImagePointer, threshold ) {
+    function binarizationWASM(originalImage, grayscaleImagePointer, threshold) {
         const performanceBinarizationt0 = performance.now();
         const result = $wasm.binarizationFloat(grayscaleImagePointer, threshold, originalImage.length);
         const performanceBinarizationtf = performance.now();
         Logger.log("WEBASSEMBLY", `Image binarization took ${performanceBinarizationtf - performanceBinarizationt0} mils `)
         return result;
     }
-    
+
+    function classify(vector) {
+
+        const t11 = performance.now();
+        const num = $wasm.classify(vector);
+        const t12 = performance.now();
+        Logger.log("WEBASSEMBLY", `Neural Net has classfied image in: ${t12 - t11} mils`);
+        return num;
+    }
+
+    function reflect(vector) {
+
+        const t11 = performance.now();
+        const response = $wasm.reflect(vector);
+        const t12 = performance.now();
+        Logger.log("WEBASSEMBLY", `Image reflection algorithm took: ${t12 - t11} mils`);
+        return response;
+    }
+
+    function normalizeImage(arr) {
+        const vector = new $wasm.vector();
+        arr.forEach(val => vector.push_back(val));
+        const t11 = performance.now();
+        const response = $wasm.normalizeGrayscalePoints(vector);
+        const t12 = performance.now();
+        Logger.log("WEBASSEMBLY", `Image standartization took: ${t12 - t11} mils`);
+        vector.delete();
+        return response;
+    }
 });

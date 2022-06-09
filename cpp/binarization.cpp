@@ -402,21 +402,38 @@ std::vector<double> resizeNearestNeighboorDouble(std::vector<double> img, int w,
 
 
 
-std::vector<double> normalizeGrayscalePoints(std::vector<double> img) {
+std::vector<double> normalizeGrayscalePoints(std::vector<int> img) {
 
     std::vector<double> dstPixels;
     dstPixels.reserve(728);
 
-    for(size_t i =0; i < img.size(); i++) {
-        double curr = img[i];
+    for(size_t i =0; i < img.size(); i+= 4) {
+        int pr = img[i] == 0 ? 0 : 1;
+        int pg = img[i + 1] == 0 ? 0 : 1;
+        int pb = img[i + 2] == 0 ? 0 : 1;
 
-        double newValue = (curr - 0) / (1 - 0) * (1 - (-1)) + (-1);
-
-        dstPixels.push_back(newValue);
+        double brightness = (pr + pg + pb) / 3; 
+        brightness = (brightness -.5) / 0.5;
+        dstPixels.push_back(brightness);
 
     }
-
+    
    return dstPixels;
+}
+
+std::vector<double> reflect(std::vector<double> img) {
+    const int image_size = 28;
+
+    for(size_t i =0; i < (image_size / 2); i++) {
+        for(size_t j = 0; j < image_size; j++) {
+            int index = (i * image_size) + j;
+            int mirrorIndex = ((image_size -1) - i) * image_size + j;
+            double temp  = img[index];
+            img[index] = img[mirrorIndex];
+            img[mirrorIndex] =  temp; 
+        }
+    }
+    return img;
 }
 
 
@@ -451,4 +468,5 @@ EMSCRIPTEN_BINDINGS (binarization_module) {
     emscripten::function("nearestNeighboorDouble", &resizeNearestNeighboorDouble);
     emscripten::function("normalizeGrayscalePoints", &normalizeGrayscalePoints);
     emscripten::function("classify", &classify);
+    emscripten::function("reflect", &reflect);
 }

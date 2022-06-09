@@ -34,7 +34,7 @@ int softmax(std::vector<double> arr, int size) {
             }
         }
 
-        std::cout << max << " número máximo" << std::endl;
+        //std::cout << max << " número máximo" << std::endl;
 
         for ( int i=0; i < size; i++ ) {
             nominators[i] =  std::exp(arr[i] - max);   //eleva a constante de euler a cada elemento do array
@@ -56,7 +56,7 @@ int softmax(std::vector<double> arr, int size) {
 int classify(std::vector<double> img) {
     std::vector<double> out;
     out.reserve(200);
-    std::cout << "Starting classification: " << bias2[0] << std::endl; 
+    //std::cout << "Starting classification: " << bias2[0] << std::endl; 
 
     for(int i =0; i <  200; i++) {
          out.push_back( bias2[i] );
