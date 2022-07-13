@@ -9,6 +9,7 @@
 #include <emscripten/bind.h>
 #include "emscripten.h"
 #include <time.h>
+#include <chrono>
 #include "rn.cpp"
 
 
@@ -315,6 +316,13 @@ namespace pompia {
             int init;
             int final;        
     };
+    class Number {
+        public: 
+            int x;
+            int y;
+            int width;
+            int height;
+    };
 }
 
 
@@ -378,9 +386,7 @@ std::vector<int> resizeNearestNeighboor(std::vector<int> img, int w, int h, int 
 std::vector<double> resizeNearestNeighboorDouble(std::vector<double> img, int w, int h, int w2, int h2) {
 
     std::vector<double> dstPixels;
-    dstPixels.reserve(h2 * w2 * 4);
-
-    int pos = 0;
+    dstPixels.reserve(h2 * w2 );
 
     for(size_t y =0; y < h2; y++) {
         for(size_t x = 0; x < w2; x++) {
@@ -388,7 +394,7 @@ std::vector<double> resizeNearestNeighboorDouble(std::vector<double> img, int w,
             int srcX = floor( (x * w)  / w2);
             int srcY = floor( (y * h)  / h2);
 
-            int srcPos = ((srcY * w) + srcX ) * 4;
+            int srcPos = ((srcY * w) + srcX ) ;
 
             dstPixels.push_back(img[srcPos++]);
             dstPixels.push_back(img[srcPos++]);
@@ -439,6 +445,327 @@ std::vector<double> reflect(std::vector<double> img) {
 
 
 
+std::vector<double> grayscale_intern(std::vector<double> img) {
+
+    std::vector<double> response;
+    response.reserve(img.size() / 4);
+
+    for( size_t i =0; i < img.size(); i+=4 ) {
+        double brightness = (0.2125 * img[i]) + (0.7154 * img[i+1])  + (0.0721 * img[i+2]); 
+        response.push_back( brightness / 255.0 );
+    }
+
+    return response;
+}
+
+double otsus_threshold_intern(std::vector<double> img) {
+
+    double n_bins = 0.1;
+
+    int total_weight = img.size();
+
+    double least_variance = -1;
+    double least_variance_threshold = -1;
+
+    std::pair<std::vector<double>::iterator, std::vector<double>::iterator> minmax = std::minmax_element(img.begin(), img.end());
+
+    double min_element = *minmax.first  + n_bins;
+    double max_element = *minmax.second - n_bins;
+    std::vector<double> color_thresholds;
+
+
+    for(double i = min_element; i <= max_element; i+= n_bins) {
+      color_thresholds.push_back(i);
+    }
+
+    std::vector<double> bg_pixels(img.size());
+    std::vector<double> fr_pixels(img.size());
+    double weight_bg = 0.0;
+    double mean_bg = 0.0;
+    double accum = 0.0;
+    double variance_bg = 0.0;
+    double weight_fr = 0.0;
+    double mean_fr = 0.0;
+    double variance_fr = 0.0;
+    std::vector<double>::iterator copyIfIterator = std::vector<double>::iterator();
+    std::vector<double>::iterator copyIfIteratorSec = std::vector<double>::iterator();
+
+    for(double color_threshold: color_thresholds) {
+
+        //std::copy_if(img.begin(), img.end(), std::back_inserter(bg_pixels), [color_threshold](double i){return i < color_threshold;});
+
+        copyIfIterator = std::copy_if(img.begin(), img.end(), bg_pixels.begin(), [color_threshold](double i){ return i < color_threshold; });
+        bg_pixels.erase(copyIfIterator, bg_pixels.end());
+
+        weight_bg =  ((double) bg_pixels.size()) / total_weight;
+
+        //calculate mean of background pixels
+        mean_bg = std::accumulate(bg_pixels.begin(), bg_pixels.end(), 0.0f) / bg_pixels.size();
+
+
+        //calculate variance of backdround pixels
+        accum = 0.0;
+        for(size_t bi = 0; bi < bg_pixels.size(); bi++) {
+            accum += (bg_pixels[bi] - mean_bg) * (bg_pixels[bi] - mean_bg);
+        }
+
+        variance_bg = (accum / (bg_pixels.size()-1));
+
+        //std::copy_if(img.begin(), img.end(), std::back_inserter(fr_pixels), [color_threshold](double i){return i >= color_threshold;});
+
+        copyIfIteratorSec = std::copy_if(img.begin(), img.end(), fr_pixels.begin(), [color_threshold](double i){ return i >= color_threshold; });
+        fr_pixels.erase(copyIfIteratorSec, fr_pixels.end());
+
+        weight_fr = ((double) fr_pixels.size()) / total_weight;
+
+        //calculate mean of foreground pixels
+        mean_fr = std::accumulate(fr_pixels.begin(), fr_pixels.end(), 0.0f) / fr_pixels.size();
+
+
+        //calculate variance of foreground pixels
+        accum = 0.0;
+        for(size_t fi = 0; fi < fr_pixels.size(); fi++) {
+            accum += (fr_pixels[fi] - mean_fr) * (fr_pixels[fi] - mean_fr);
+        }
+
+     
+        variance_fr = (accum / (fr_pixels.size()-1));
+
+        double class_variance = weight_fr * variance_fr + weight_bg * variance_bg;
+
+        if (least_variance == -1 || least_variance > class_variance  ) {
+            least_variance = class_variance;
+            least_variance_threshold = color_threshold;
+        }
+
+        bg_pixels.clear();
+        fr_pixels.clear();
+    }
+
+    return least_variance_threshold;
+}
+
+std::vector<int> binarization_intern(std::vector<double> img, double threshold) {
+
+    std::vector<int> result;
+    result.reserve(img.size());
+
+    for ( size_t i =0; i <img.size(); i++ ) {
+
+        if ( img[i] < threshold ) {
+            result.push_back(255);
+            result.push_back(255);
+            result.push_back(255);
+        } else {
+            result.push_back(0);
+            result.push_back(0);
+            result.push_back(0);
+        }
+
+        result.push_back(255);  
+    }
+
+    return result;
+}
+
+
+  std::vector<double> get_vertical_plot_intern(std::vector<int> simplified_image) {
+
+    int step = 500; //canvas size
+
+    std::vector<double> vertical_plot;
+    vertical_plot.reserve(step);
+    double sum = 0;
+    for(size_t posY = 0; posY < simplified_image.size(); posY += step) {
+        sum = 0;
+        for(size_t posX = posY; posX < posY + step; posX++) {
+            sum += (simplified_image[posX] / 255);
+        }
+        vertical_plot.push_back(sum);
+    }
+
+    return vertical_plot;
+}
+
+std::vector<double> get_horizontal_plot_intern(std::vector<int> simplified_image) {
+
+    int step = 500; //canvas size
+    std::vector<double> horizontal_plot;
+    horizontal_plot.reserve(step);
+    double sum = 0;
+    for(size_t posX = 0; posX < step; posX++) {
+        sum = 0;
+        for(size_t posY = posX; posY < simplified_image.size(); posY+= step) {
+            sum += (simplified_image[posY] / 255);
+        }
+        horizontal_plot.push_back(sum);
+    }
+
+    return horizontal_plot;
+}
+
+
+
+std::vector<int> rotateImage(std::vector<int> imageData) {
+        int size = 28;
+        // the rotation origin    
+        int ox = 14;
+        int oy = 14;
+        // the rotation amount
+        double rot = M_PI / 2; // 90 deg
+        // the rotated x axis
+        double ax = cos(rot);
+        double ay = sin(rot);
+        // get the source pixel data
+        //const imageData = ctx.getImageData(0, 0, size, size);
+        std::vector<int> d32(imageData.begin(), imageData.end());
+
+        // create a destination pixel array
+        std::vector<int> rotImageData ;
+        rotImageData.reserve(imageData.size() / 4);
+        // scan each pixel and row adding pixels to rotImageData from the transformed
+        // x,y coordinate.
+        for (size_t y = 0; y < size; y += 1) {
+            for (size_t x = 0; x < size; x += 1) {
+                int ind = (x + y * size);
+                // transform the current pixel to the rotated pixel
+                int rx = (x - ox) * ax - (y - oy) * ay + ox;
+                int ry = (x - ox) * ay + (y - oy) * ax + oy;
+                // use nearest pixel lookup and get index of original image
+                int ind1 = ((rx | 0) + (ry | 0) * size);
+                rotImageData[ind] = d32[ind1];
+            }
+        }
+        
+        return rotImageData;
+}
+
+std::vector<int> binarizated_image_g;
+
+std::vector<int> getBinarizatedImage(){
+    return binarizated_image_g;
+}
+
+using std::chrono::high_resolution_clock;
+using std::chrono::duration_cast;
+using std::chrono::duration;
+using std::chrono::milliseconds;
+
+std::vector<pompia::Number> aaaa(std::vector<double> img) {
+
+
+    std::vector<double> grayscale_points  = grayscale_intern(img);
+    double threshold = otsus_threshold_intern(grayscale_points);
+
+    std::vector<int> binarizated_image = binarization_intern(grayscale_points, threshold);
+    binarizated_image_g = binarizated_image;
+
+    std::vector<int> simplified = get_flatten_image(binarizated_image);
+
+    std::vector<double> vertical_plot = get_vertical_plot_intern(simplified);
+
+    std::vector<pompia::Point> vertical_points = get_points(vertical_plot);
+
+    std::vector<double> horizontal_plot = get_horizontal_plot_intern(simplified);
+ 
+    std::vector<pompia::Point> horizontal_points = get_points(horizontal_plot);
+    
+    std::vector<pompia::Number> numbers;
+
+    int x = 0;
+    int y = 0;
+    int width = 0;
+    int height = 0;
+    if (horizontal_points.size() > vertical_points.size()) {
+
+        int curr = 0;
+        for (size_t i = 0; i < horizontal_points.size(); i++) {
+
+            pompia::Point verticalPoint = vertical_points[curr];
+
+            x = horizontal_points[i].init;
+            y = verticalPoint.init;
+            width = horizontal_points[i].final - horizontal_points[i].init;
+            height = verticalPoint.final - verticalPoint.init;
+
+            if (width >= 10 && height >= 10) {
+
+                pompia::Number number;
+                number.x = x;
+                number.y = y;
+                number.width = width;
+                number.height = height; 
+                numbers.push_back(number);
+            }
+
+            if ((vertical_points.size() - 1) > curr)
+                curr++;
+        }
+    } else {
+
+        int curr = 0;
+        for (size_t i = 0; i < vertical_points.size(); i++) {
+
+            pompia::Point horizontalPoint = horizontal_points[curr];
+
+            x = horizontalPoint.init;
+            y = vertical_points[i].init;
+            width = horizontalPoint.final - horizontalPoint.init;
+            height = vertical_points[i].final - vertical_points[i].init;
+
+            if (width >= 10 && height >= 10){
+
+                pompia::Number number;
+                number.x = x;
+                number.y = y;
+                number.width = width;
+                number.height = height; 
+                numbers.push_back(number);
+            }
+
+            if ((horizontal_points.size() - 1) > curr)
+                curr++;
+        }
+    }
+  
+    // std::for_each(numbers.begin(), numbers.end(), [&](const pompia::Number number) {
+
+    //     int start = (500 * number.y) + number.x;
+    //     int largura = start + (number.width - 1);
+    //     int altura = start + (number.height -1);
+    //     int final = largura + ((number.height -1) * 500 );
+    //     std::vector<int> cuttedImage;
+
+    //     for(int posY = start; posY < final; posY += 500) {
+    //         for(int posX = posY; posX < posY + number.width; posX++) {
+    //             cuttedImage.push_back( simplified[posX] );
+    //         }
+    //     }
+
+
+    //     std::vector<int> resizedImage =  resizeNearestNeighboor(cuttedImage, largura, altura, 28, 28);
+
+    //     std::vector<int> rotatedImage =  rotateImage(resizedImage);
+
+    //     std::vector<double> normalizedImage = normalizeGrayscalePoints(rotatedImage);
+
+    //     std::vector<double> reflectedImage =  reflect(normalizedImage);
+
+    //     std::cout << "CLASSIFICATION: " << classify(reflectedImage) << std::endl;
+
+    // });
+
+
+
+
+
+
+
+
+    return numbers;
+}
+
+
 
 EMSCRIPTEN_BINDINGS (binarization_module) {
     emscripten::function("version", &get_version);
@@ -457,6 +784,17 @@ EMSCRIPTEN_BINDINGS (binarization_module) {
     emscripten::value_object<pompia::Point>("Point")
     .field("init", &pompia::Point::init)
     .field("final", &pompia::Point::final);
+
+
+    emscripten::register_vector<pompia::Number>("NumberVector");
+
+    emscripten::value_object<pompia::Number>("Number")
+    .field("x", &pompia::Number::x)
+    .field("y", &pompia::Number::y)
+    .field("width", &pompia::Number::width)
+    .field("height", &pompia::Number::height);
+    emscripten::function("aaaa", &aaaa); 
+    emscripten::function("getBinarizatedImage", &getBinarizatedImage); 
 
     emscripten::function("boxBlur", &box_blur);
     emscripten::function("flatRGBA", &get_flatten_image);

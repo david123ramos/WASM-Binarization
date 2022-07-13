@@ -1,5 +1,19 @@
 {
+    "edge" : {
+        "mean" : 542.469,
+        "variance": 6001.924,
+        "standard_deviation" : 77.472 //34% faster
+    },
+
     "brave" : {
-        "mean" : 856.400
-    }
+        "mean" : 605.631,
+        "variance":   28807.782,
+        "standard_deviation": 169.728 //44% faster
+    },
+
+    "chrome" : {
+        "mean" : 546.882,
+        "variance": 5414.200,
+        "standard_deviation" : 73.581 //52% faster
+    }    
 }

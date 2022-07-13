@@ -27,28 +27,44 @@ wasmModule().then(($wasm) => {
 
     const img = new Image();
 
+
     var folder = 1;
     var folder_limit = 7;
     var limit_img = 2019;
     var counter = 1;
-
+    const intervalValues = [];
+    
     var interval = setInterval(function () {
-        
+    
         img.src = `http://localhost:8081/${folder}/synthetic_mnist_${counter}.png`
-
+    
        ++counter;
-       console.log(Sum)
-
+       console.log(Sum);
+    
+    
        if(counter > limit_img) {
            counter = 0;
            ++folder;
        }
-
+    
        if(folder > folder_limit){
            clearInterval(interval);
+    
+           const totalImageCount = limit_img * folder_limit;
+           const Mean = Sum / totalImageCount;
+    
+    
+           const Variance = intervalValues.map(x => Math.pow(x - Mean, 2)).reduce((a, b) => a + b) / totalImageCount ;
+    
+           const Std = Math.sqrt(Variance);
+    
+           console.warn( `MEAN: ${Mean}` );
+           console.warn( `Variance: ${Variance}` );
+           console.warn( `Standard Deviation: ${Std}` );
+           
        }
-
-    }, 1500);
+    
+    }, 600);
     
 
     img.crossOrigin = "Anonymous"
@@ -69,15 +85,6 @@ wasmModule().then(($wasm) => {
 
     });
 
-
-    //img.src = "./assets/a.jpeg"; //sign
-    //img.src = "./assets/manynumbers (1).jpeg"
-    //img.src = "./assets/bad5.jpeg" //light correction
-    //img.src = "./assets/6.png";
-    //img.src = "./assets/8.png";
-    //img.src = "./assets/img2g.jpg";
-    //img.src = "./assets/img2.jpg";
-
     const cv = document.querySelector("#mainCV");
 
     const globalContext = cv.getContext("2d");
@@ -91,20 +98,27 @@ wasmModule().then(($wasm) => {
 
         const needsBlur = document.querySelector("#blur_checkbox").checked;
 
-        let dataGrayscale = null;
+        //let dataGrayscale = null;
         StartTime = performance.now();
         if (needsBlur) {
             const blurredImage = boxBlur(imageData.data);
             writeInCanvas(blurredImage).then(canvas => document.querySelector(".container").appendChild(canvas));
             dataGrayscale = grayscaleWASM(blurredImage);
         } else {
-            dataGrayscale = grayscaleWASM(imageData.data);
+
+            console.log(`executando o código`);
+            var arrNum = aaaa(imageData.data);
+            //console.log(arrNum );
+
+            arrNum.forEach(num => numbers.push(num));
+            //dataGrayscale = grayscaleWASM(imageData.data);
         }
 
-        const simplified = flattenFloatChanels([...dataGrayscale.grayscaleImage]);
+        //const simplified = flattenFloatChanels([...dataGrayscale.grayscaleImage]);
 
-        const dataOtsu = otsusThresholdingWASM(simplified);
-        const binarizatedVector = binarizationWASM(dataGrayscale.originalImage, dataGrayscale.grayscalePointer, dataOtsu.threshold, this.src)
+        //const dataOtsu = otsusThresholdingWASM(simplified);
+        const binarizatedVector = $wasm.getBinarizatedImage();
+        //binarizationWASM(imageData.data, dataGrayscale.grayscalePointer, dataOtsu.threshold, this.src)
 
         const finalResultImg = [];
 
@@ -114,12 +128,12 @@ wasmModule().then(($wasm) => {
         binarizatedVector.delete();
 
 
-        const simplifiedImageBinarizated = flattenChanels(finalResultImg);
+        //const simplifiedImageBinarizated = flattenChanels(finalResultImg);
 
-        const step = 500; // canvas width
+        //const step = 500; // canvas width
 
 
-        const verticalPlot = getVerticalPlot(simplifiedImageBinarizated);
+        //const verticalPlot = getVerticalPlot(simplifiedImageBinarizated);
 
         // for(let posY = 0; posY < simplifiedImageBinarizated.length; posY += step) {
         //     let sum = 0;
@@ -130,7 +144,7 @@ wasmModule().then(($wasm) => {
         // }
 
 
-        const pointsAuxVertical = getPoints(verticalPlot);
+        //const pointsAuxVertical = getPoints(verticalPlot);
 
         // let searchingFinal = false;
         // for(let i = 0; i < verticalPlot.length; i++) {
@@ -146,7 +160,7 @@ wasmModule().then(($wasm) => {
         //     }
         // }
 
-        const horizontalPlot = getHorizontalPlot(simplifiedImageBinarizated);
+        //const horizontalPlot = getHorizontalPlot(simplifiedImageBinarizated);
         // for(let posX = 0; posX < step; posX++) {
         //     let sum2 = 0;
         //     for(let posY = posX; posY < simplifiedImageBinarizated.length; posY+= step) {
@@ -157,7 +171,7 @@ wasmModule().then(($wasm) => {
 
 
 
-        const pointsAuxHorizontal = getPoints(horizontalPlot);
+        //const pointsAuxHorizontal = getPoints(horizontalPlot);
 
         // let initHorizontal = 0;
         // let searchingFinalHoriz = false;
@@ -177,70 +191,74 @@ wasmModule().then(($wasm) => {
 
 
 
-        if (document.querySelector("#histogram_checkbox").checked) {
-            document.querySelector(".container").appendChild(generateVerticalHistogram(verticalPlot, step, step));
-            document.querySelector(".container").appendChild(generateHorizontalHistogram(horizontalPlot, step, step));
-        }
+        // if (document.querySelector("#histogram_checkbox").checked) {
+        //     document.querySelector(".container").appendChild(generateVerticalHistogram(verticalPlot, step, step));
+        //     document.querySelector(".container").appendChild(generateHorizontalHistogram(horizontalPlot, step, step));
+        // }
 
         writeInCanvas(finalResultImg).then(canvas => {
-            //document.querySelector(".container").appendChild(canvas); &&
+            //document.querySelector(".container").appendChild(canvas); 
 
             const ctx = canvas.getContext("2d");
-            ctx.strokeStyle = "#03fc30" // light green
-            ctx.fillStyle = "green";
-            ctx.font = "20px Arial";
-            let x = 0;
-            let y = 0;
-            let width = 0;
-            let height = 0;
+            //ctx.strokeStyle = "#03fc30" // light green
+            //ctx.fillStyle = "green";
+            //ctx.font = "20px Arial";
+            // let x = 0;
+            // let y = 0;
+            // let width = 0;
+            // let height = 0;
 
-            if (pointsAuxHorizontal.length > pointsAuxVertical.length) {
+            // if (pointsAuxHorizontal.length > pointsAuxVertical.length) {
 
-                let curr = 0;
-                for (let i = 0; i < pointsAuxHorizontal.length; i++) {
+            //     let curr = 0;
+            //     for (let i = 0; i < pointsAuxHorizontal.length; i++) {
 
-                    var verticalPoint = pointsAuxVertical[curr];
+            //         var verticalPoint = pointsAuxVertical[curr];
 
-                    x = pointsAuxHorizontal[i].init;
-                    y = verticalPoint.init;
-                    width = pointsAuxHorizontal[i].final - pointsAuxHorizontal[i].init;
-                    height = verticalPoint.final - verticalPoint.init
+            //         x = pointsAuxHorizontal[i].init;
+            //         y = verticalPoint.init;
+            //         width = pointsAuxHorizontal[i].final - pointsAuxHorizontal[i].init;
+            //         height = verticalPoint.final - verticalPoint.init
 
-                    if (width >= 10 && height >= 10) {
-                        const number = {
-                            x, y, width, height
-                        };
-                        numbers.push(number);
+            //         if (width >= 10 && height >= 10) {
+            //             const number = {
+            //                 x, y, width, height
+            //             };
+            //             //numbers.push(number);
 
-                    }
+            //         }
 
-                    if ((pointsAuxVertical.length - 1) > curr) curr++;
-                }
+            //         if ((pointsAuxVertical.length - 1) > curr) curr++;
+            //     }
 
-            } else {
+            // } else {
 
-                let curr = 0;
-                for (let i = 0; i < pointsAuxVertical.length; i++) {
+            //     let curr = 0;
+            //     for (let i = 0; i < pointsAuxVertical.length; i++) {
 
-                    var horizontalPoint = pointsAuxHorizontal[curr];
+            //         var horizontalPoint = pointsAuxHorizontal[curr];
 
-                    x = horizontalPoint.init;
-                    y = pointsAuxVertical[i].init;
-                    width = horizontalPoint.final - horizontalPoint.init;
-                    height = pointsAuxVertical[i].final - pointsAuxVertical[i].init
+            //         x = horizontalPoint.init;
+            //         y = pointsAuxVertical[i].init;
+            //         width = horizontalPoint.final - horizontalPoint.init;
+            //         height = pointsAuxVertical[i].final - pointsAuxVertical[i].init
 
 
-                    if (width >= 10 && height >= 10) {
-                        const number = {
-                            x, y, width, height
-                        };
-                        numbers.push(number);
-                    }
+            //         if (width >= 10 && height >= 10) {
+            //             const number = {
+            //                 x, y, width, height
+            //             };
+            //             //numbers.push(number);
+            //         }
 
-                    if ((pointsAuxHorizontal.length - 1) > curr) curr++;
-                }
+            //         if ((pointsAuxHorizontal.length - 1) > curr) curr++;
+            //     }
 
-            }
+            // }
+
+            // FinalTime = performance.now();
+            // var calctime = FinalTime - StartTime;
+            // console.warn(`JS numbers took: ${calctime} mils`)
 
             numbers.forEach((number, index) => {
                 const cv2 = document.createElement("canvas");
@@ -261,7 +279,7 @@ wasmModule().then(($wasm) => {
                     div.id = `tooltip-${index}`;
                     //canvas.appendChild(div); &&
 
-                    const container = document.createElement("div");
+                    //const container = document.createElement("div");
                     //container.appendChild(div); &&
                     //container.appendChild(canvas); &&
 
@@ -274,52 +292,41 @@ wasmModule().then(($wasm) => {
                     const vvimg = rotateImage(vv).data;
 
                     var aa = normalizeImage(vvimg);
-                    // for(let i =0; i < vvimg.length; i+= 4) {
-
-                    //     var pr = vvimg[i] == 0 ? 0 : 1;
-                    //     var pg = vvimg[i + 1] == 0 ? 0 : 1;
-                    //     var pb = vvimg[i + 2] == 0 ? 0 : 1;
-
-                    //     var brightness = (pr + pg + pb) / 3; 
-
-                    //     brightness = (brightness -.5) / 0.5;
-                    //     aa.push_back(brightness);
-                    // }
 
                     aa = reflect(aa);
 
                     /**
                      * this piece of code is used to draw pixel values on a table.
                      */
-                    if (document.querySelector("#show-debug-table").checked) {
-                        var v = []
-                        for (let i = 0; i < aa.size(); i++) {
-                            v.push(aa.get(i));
-                        }
+                    // if (document.querySelector("#show-debug-table").checked) {
+                    //     var v = []
+                    //     for (let i = 0; i < aa.size(); i++) {
+                    //         v.push(aa.get(i));
+                    //     }
 
 
-                        var row = document.createElement("tr");
-                        for (let a = 0; a < v.length; a++) {
-                            const square = document.createElement("td");
+                    //     var row = document.createElement("tr");
+                    //     for (let a = 0; a < v.length; a++) {
+                    //         const square = document.createElement("td");
 
-                            var c1 = v[a] > 0 ? "bg-dark" : "bg-light";
-                            var c2 = v[a] > 0 ? "text-light" : "text-dark";
-                            square.classList.add("square", c1, c2);
-                            square.innerText = v[a];
+                    //         var c1 = v[a] > 0 ? "bg-dark" : "bg-light";
+                    //         var c2 = v[a] > 0 ? "text-light" : "text-dark";
+                    //         square.classList.add("square", c1, c2);
+                    //         square.innerText = v[a];
 
-                            row.appendChild(square);
+                    //         row.appendChild(square);
 
-                            if (a > 0 && a % 28 == 0) {
-                                document.querySelector("#neural-data-visualization").appendChild(row);
-                                row = document.createElement("tr");
-                            }
-                        }
-                    }
+                    //         if (a > 0 && a % 28 == 0) {
+                    //             document.querySelector("#neural-data-visualization").appendChild(row);
+                    //             row = document.createElement("tr");
+                    //         }
+                    //     }
+                    // }
 
-                    const num = classify(aa);
+                    classify(aa);
 
                     aa.delete();
-                    console.log(`Result: ${num}`)
+                    //console.log(`Result: ${num}`);
                    
                    // const tooltip = document.querySelector(`#tooltip-${index}`);
                     //tooltip.innerHTML = `I think this is a <strong>${num}</strong>! 🙂`;
@@ -327,20 +334,20 @@ wasmModule().then(($wasm) => {
 
                 });
 
-                ctx.strokeRect(number.x, number.y, number.width, number.height);
+                //ctx.strokeRect(number.x, number.y, number.width, number.height);
             });
 
             FinalTime = performance.now();
             var calctime = FinalTime - StartTime;
 
             Sum += calctime
-
-            console.log("ALL PROCESS", `ALL Process took ${calctime} mils`);
+            intervalValues.push(calctime);
+            console.log(`ALL Process took ${calctime} mils`);
             window.numbers = [];
-
         });
-        dataGrayscale.free();
-        dataOtsu.free();
+
+        //dataGrayscale.free();
+        //dataOtsu.free();
     };
 
 
@@ -555,6 +562,24 @@ wasmModule().then(($wasm) => {
         Logger.log("WEBASSEMBLY", `Flatten RGBA (with Double values) [auxiliary function] took: ${t2 - t1} mils`);
 
         return new Float32Array(r);
+    }
+
+
+    function aaaa(pixels) {
+
+        const vector = new $wasm.RealVector();
+        pixels.forEach(val => vector.push_back(val));
+
+        const response = $wasm.aaaa(vector);
+
+        const r = [];
+        for(let i=0; i < response.size(); i++) {
+            r.push(response.get(i));
+        }
+
+        vector.delete();
+        response.delete();
+        return r;
     }
 
     function resized(pixels, w, h, w2, h2) {
