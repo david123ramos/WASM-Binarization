@@ -356,8 +356,6 @@ std::vector<int> resizeNearestNeighboor(std::vector<int> img, int w, int h, int 
     std::vector<int> dstPixels;
     dstPixels.reserve(h2 * w2 * 4);
 
-    int pos = 0;
-
     for(size_t y =0; y < h2; y++) {
         for(size_t x = 0; x < w2; x++) {
 
