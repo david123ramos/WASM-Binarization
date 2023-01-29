@@ -8,7 +8,7 @@ window.onerror = function (e, src, line, col, error) {
 }
 var StartTime = 0;
 var FinalTime = 0;
-var Sum = 0;
+//var Sum = 0;
 
 
 wasmModule().then(($wasm) => {
@@ -28,43 +28,43 @@ wasmModule().then(($wasm) => {
     const img = new Image();
 
 
-    var folder = 1;
-    var folder_limit = 7;
-    var limit_img = 2019;
-    var counter = 1;
-    const intervalValues = [];
+    // var folder = 1;
+    // var folder_limit = 7;
+    // var limit_img = 2019;
+    // var counter = 1;
+    // const intervalValues = [];
     
-    var interval = setInterval(function () {
+    // var interval = setInterval(function () {
     
-        img.src = `http://localhost:8081/${folder}/synthetic_mnist_${counter}.png`
+    //     img.src = `http://localhost:8081/${folder}/synthetic_mnist_${counter}.png`
     
-       ++counter;
-       console.log(Sum);
-    
-    
-       if(counter > limit_img) {
-           counter = 0;
-           ++folder;
-       }
-    
-       if(folder > folder_limit){
-           clearInterval(interval);
-    
-           const totalImageCount = limit_img * folder_limit;
-           const Mean = Sum / totalImageCount;
+    //    ++counter;
+    //    console.log(Sum);
     
     
-           const Variance = intervalValues.map(x => Math.pow(x - Mean, 2)).reduce((a, b) => a + b) / totalImageCount ;
+    //    if(counter > limit_img) {
+    //        counter = 0;
+    //        ++folder;
+    //    }
     
-           const Std = Math.sqrt(Variance);
+    //    if(folder > folder_limit){
+    //        clearInterval(interval);
     
-           console.warn( `MEAN: ${Mean}` );
-           console.warn( `Variance: ${Variance}` );
-           console.warn( `Standard Deviation: ${Std}` );
+    //        const totalImageCount = limit_img * folder_limit;
+    //        const Mean = Sum / totalImageCount;
+    
+    
+    //        const Variance = intervalValues.map(x => Math.pow(x - Mean, 2)).reduce((a, b) => a + b) / totalImageCount ;
+    
+    //        const Std = Math.sqrt(Variance);
+    
+    //        console.warn( `MEAN: ${Mean}` );
+    //        console.warn( `Variance: ${Variance}` );
+    //        console.warn( `Standard Deviation: ${Std}` );
            
-       }
+    //    }
     
-    }, 600);
+    // }, 600);
     
 
     img.crossOrigin = "Anonymous"
@@ -277,13 +277,13 @@ wasmModule().then(($wasm) => {
 
                     const div = document.createElement("span");
                     div.id = `tooltip-${index}`;
-                    //canvas.appendChild(div); &&
+                    canvas.appendChild(div);
 
-                    //const container = document.createElement("div");
-                    //container.appendChild(div); &&
-                    //container.appendChild(canvas); &&
+                    const container = document.createElement("div");
+                    container.appendChild(div);
+                    container.appendChild(canvas);
 
-                    //document.body.querySelector(".container").appendChild(container); &&
+                    document.body.querySelector(".container").appendChild(container);
 
                     //var aa = new $wasm.RealVector();
 
@@ -298,50 +298,50 @@ wasmModule().then(($wasm) => {
                     /**
                      * this piece of code is used to draw pixel values on a table.
                      */
-                    // if (document.querySelector("#show-debug-table").checked) {
-                    //     var v = []
-                    //     for (let i = 0; i < aa.size(); i++) {
-                    //         v.push(aa.get(i));
-                    //     }
+                    if (document.querySelector("#show-debug-table").checked) {
+                        var v = []
+                        for (let i = 0; i < aa.size(); i++) {
+                            v.push(aa.get(i));
+                        }
 
 
-                    //     var row = document.createElement("tr");
-                    //     for (let a = 0; a < v.length; a++) {
-                    //         const square = document.createElement("td");
+                        var row = document.createElement("tr");
+                        for (let a = 0; a < v.length; a++) {
+                            const square = document.createElement("td");
 
-                    //         var c1 = v[a] > 0 ? "bg-dark" : "bg-light";
-                    //         var c2 = v[a] > 0 ? "text-light" : "text-dark";
-                    //         square.classList.add("square", c1, c2);
-                    //         square.innerText = v[a];
+                            var c1 = v[a] > 0 ? "bg-dark" : "bg-light";
+                            var c2 = v[a] > 0 ? "text-light" : "text-dark";
+                            square.classList.add("square", c1, c2);
+                            square.innerText = v[a];
 
-                    //         row.appendChild(square);
+                            row.appendChild(square);
 
-                    //         if (a > 0 && a % 28 == 0) {
-                    //             document.querySelector("#neural-data-visualization").appendChild(row);
-                    //             row = document.createElement("tr");
-                    //         }
-                    //     }
-                    // }
+                            if (a > 0 && a % 28 == 0) {
+                                document.querySelector("#neural-data-visualization").appendChild(row);
+                                row = document.createElement("tr");
+                            }
+                        }
+                    }
 
                     classify(aa);
 
                     aa.delete();
                     //console.log(`Result: ${num}`);
                    
-                   // const tooltip = document.querySelector(`#tooltip-${index}`);
-                    //tooltip.innerHTML = `I think this is a <strong>${num}</strong>! 🙂`;
-                    //tooltip.classList.add("text-dark", "badge", "bg-warning");
+                    const tooltip = document.querySelector(`#tooltip-${index}`);
+                    tooltip.innerHTML = `I think this is a <strong>${num}</strong>! 🙂`;
+                    tooltip.classList.add("text-dark", "badge", "bg-warning");
 
                 });
 
-                //ctx.strokeRect(number.x, number.y, number.width, number.height);
+                    ctx.strokeRect(number.x, number.y, number.width, number.height);
             });
 
             FinalTime = performance.now();
             var calctime = FinalTime - StartTime;
 
-            Sum += calctime
-            intervalValues.push(calctime);
+            //Sum += calctime
+            //intervalValues.push(calctime);
             console.log(`ALL Process took ${calctime} mils`);
             window.numbers = [];
         });
