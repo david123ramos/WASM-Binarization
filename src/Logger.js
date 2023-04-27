@@ -13,7 +13,7 @@ export default class Logger {
         "wasm" : "alert-primary",
         "pompia" : "alert-danger",
     }
-    static measuringPerformance = true
+    static measuringPerformance = false
     
     
     static log(from, msg, type="log") {

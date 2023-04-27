@@ -275,9 +275,9 @@ std::vector<double> get_flatten_image_f(std::vector<double> img) {
 }
 
 
-emscripten::val get_vertical_plot(std::vector<int> simplified_image) {
+emscripten::val get_vertical_plot(std::vector<int> simplified_image, int height) {
 
-    int step = 500; //canvas size
+    int step = height; //canvas size
 
     std::vector<double> vertical_plot;
     vertical_plot.reserve(step);
@@ -293,9 +293,9 @@ emscripten::val get_vertical_plot(std::vector<int> simplified_image) {
     return emscripten::val(emscripten::typed_memory_view(step, &vertical_plot[0]));
 }
 
-emscripten::val get_horizontal_plot(std::vector<int> simplified_image) {
+emscripten::val get_horizontal_plot(std::vector<int> simplified_image, int width) {
 
-    int step = 500; //canvas size
+    int step = width; //canvas size
     std::vector<double> horizontal_plot;
     horizontal_plot.reserve(step);
     double sum = 0;
@@ -569,9 +569,9 @@ std::vector<int> binarization_intern(std::vector<double> img, double threshold) 
 }
 
 
-  std::vector<double> get_vertical_plot_intern(std::vector<int> simplified_image) {
+  std::vector<double> get_vertical_plot_intern(std::vector<int> simplified_image, int height) {
 
-    int step = 500; //canvas size
+    int step = height; //canvas size
 
     std::vector<double> vertical_plot;
     vertical_plot.reserve(step);
@@ -587,9 +587,9 @@ std::vector<int> binarization_intern(std::vector<double> img, double threshold) 
     return vertical_plot;
 }
 
-std::vector<double> get_horizontal_plot_intern(std::vector<int> simplified_image) {
+std::vector<double> get_horizontal_plot_intern(std::vector<int> simplified_image, int width) {
 
-    int step = 500; //canvas size
+    int step = width; //canvas size
     std::vector<double> horizontal_plot;
     horizontal_plot.reserve(step);
     double sum = 0;
@@ -646,14 +646,20 @@ std::vector<int> getBinarizatedImage(){
     return binarizated_image_g;
 }
 
+bool error = false;
+
+bool hasError() {
+    return error;
+}
+
 using std::chrono::high_resolution_clock;
 using std::chrono::duration_cast;
 using std::chrono::duration;
 using std::chrono::milliseconds;
 
-std::vector<pompia::Number> aaaa(std::vector<double> img) {
+std::vector<pompia::Number> aaaa(std::vector<double> img, int img_width, int img_height) {
 
-
+    error = false;
     std::vector<double> grayscale_points  = grayscale_intern(img);
     double threshold = otsus_threshold_intern(grayscale_points);
 
@@ -662,11 +668,11 @@ std::vector<pompia::Number> aaaa(std::vector<double> img) {
 
     std::vector<int> simplified = get_flatten_image(binarizated_image);
 
-    std::vector<double> vertical_plot = get_vertical_plot_intern(simplified);
+    std::vector<double> vertical_plot = get_vertical_plot_intern(simplified, img_height);
 
     std::vector<pompia::Point> vertical_points = get_points(vertical_plot);
 
-    std::vector<double> horizontal_plot = get_horizontal_plot_intern(simplified);
+    std::vector<double> horizontal_plot = get_horizontal_plot_intern(simplified, img_width);
  
     std::vector<pompia::Point> horizontal_points = get_points(horizontal_plot);
     
@@ -676,91 +682,64 @@ std::vector<pompia::Number> aaaa(std::vector<double> img) {
     int y = 0;
     int width = 0;
     int height = 0;
-    if (horizontal_points.size() > vertical_points.size()) {
 
-        int curr = 0;
-        for (size_t i = 0; i < horizontal_points.size(); i++) {
+    try {
+        if (horizontal_points.size() > vertical_points.size()) {
 
-            pompia::Point verticalPoint = vertical_points[curr];
+            int curr = 0;
+            for (size_t i = 0; i < horizontal_points.size(); i++) {
 
-            x = horizontal_points[i].init;
-            y = verticalPoint.init;
-            width = horizontal_points[i].final - horizontal_points[i].init;
-            height = verticalPoint.final - verticalPoint.init;
+                pompia::Point verticalPoint = vertical_points[curr];
 
-            if (width >= 10 && height >= 10) {
+                x = horizontal_points[i].init;
+                y = verticalPoint.init;
+                width = horizontal_points[i].final - horizontal_points[i].init;
+                height = verticalPoint.final - verticalPoint.init;
 
-                pompia::Number number;
-                number.x = x;
-                number.y = y;
-                number.width = width;
-                number.height = height; 
-                numbers.push_back(number);
+                if (width >= 10 && height >= 10) {
+
+                    pompia::Number number;
+                    number.x = x;
+                    number.y = y;
+                    number.width = width;
+                    number.height = height; 
+                    numbers.push_back(number);
+                }
+
+                if ((vertical_points.size() - 1) > curr)
+                    curr++;
             }
+        } else {
 
-            if ((vertical_points.size() - 1) > curr)
-                curr++;
-        }
-    } else {
+            int curr = 0;
+            for (size_t i = 0; i < vertical_points.size(); i++) {
 
-        int curr = 0;
-        for (size_t i = 0; i < vertical_points.size(); i++) {
+                pompia::Point horizontalPoint = horizontal_points[curr];
 
-            pompia::Point horizontalPoint = horizontal_points[curr];
+                x = horizontalPoint.init;
+                y = vertical_points[i].init;
+                width = horizontalPoint.final - horizontalPoint.init;
+                height = vertical_points[i].final - vertical_points[i].init;
 
-            x = horizontalPoint.init;
-            y = vertical_points[i].init;
-            width = horizontalPoint.final - horizontalPoint.init;
-            height = vertical_points[i].final - vertical_points[i].init;
+                if (width >= 10 && height >= 10){
 
-            if (width >= 10 && height >= 10){
+                    pompia::Number number;
+                    number.x = x;
+                    number.y = y;
+                    number.width = width;
+                    number.height = height; 
+                    numbers.push_back(number);
+                }
 
-                pompia::Number number;
-                number.x = x;
-                number.y = y;
-                number.width = width;
-                number.height = height; 
-                numbers.push_back(number);
+                if ((horizontal_points.size() - 1) > curr)
+                    curr++;
             }
-
-            if ((horizontal_points.size() - 1) > curr)
-                curr++;
         }
     }
-  
-    // std::for_each(numbers.begin(), numbers.end(), [&](const pompia::Number number) {
-
-    //     int start = (500 * number.y) + number.x;
-    //     int largura = start + (number.width - 1);
-    //     int altura = start + (number.height -1);
-    //     int final = largura + ((number.height -1) * 500 );
-    //     std::vector<int> cuttedImage;
-
-    //     for(int posY = start; posY < final; posY += 500) {
-    //         for(int posX = posY; posX < posY + number.width; posX++) {
-    //             cuttedImage.push_back( simplified[posX] );
-    //         }
-    //     }
-
-
-    //     std::vector<int> resizedImage =  resizeNearestNeighboor(cuttedImage, largura, altura, 28, 28);
-
-    //     std::vector<int> rotatedImage =  rotateImage(resizedImage);
-
-    //     std::vector<double> normalizedImage = normalizeGrayscalePoints(rotatedImage);
-
-    //     std::vector<double> reflectedImage =  reflect(normalizedImage);
-
-    //     std::cout << "CLASSIFICATION: " << classify(reflectedImage) << std::endl;
-
-    // });
-
-
-
-
-
-
-
+    catch(const std::exception& e) {
+        error = false;
+    }
+    
 
     return numbers;
 }
@@ -807,4 +786,7 @@ EMSCRIPTEN_BINDINGS (binarization_module) {
     emscripten::function("normalizeGrayscalePoints", &normalizeGrayscalePoints);
     emscripten::function("classify", &classify);
     emscripten::function("reflect", &reflect);
+    
+    emscripten::function("hasError", &hasError);
+
 }

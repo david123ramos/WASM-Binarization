@@ -3,12 +3,17 @@ import Logger from "./Logger.js";
 
 window.numbers = [];
 
+const values = [];
+const errors = [];
+const cv = document.querySelector("#mainCV");
+const globalContext = cv.getContext("2d");
+
 window.onerror = function (e, src, line, col, error) {
     Logger.log("POMPIA", `ERROR: ${error.name} at line ${line}`);
 }
 var StartTime = 0;
 var FinalTime = 0;
-//var Sum = 0;
+var Sum = 0;
 
 
 wasmModule().then(($wasm) => {
@@ -28,43 +33,59 @@ wasmModule().then(($wasm) => {
     const img = new Image();
 
 
-    // var folder = 1;
-    // var folder_limit = 7;
-    // var limit_img = 2019;
-    // var counter = 1;
-    // const intervalValues = [];
     
-    // var interval = setInterval(function () {
-    
-    //     img.src = `http://localhost:8081/${folder}/synthetic_mnist_${counter}.png`
-    
-    //    ++counter;
-    //    console.log(Sum);
-    
-    
-    //    if(counter > limit_img) {
-    //        counter = 0;
-    //        ++folder;
-    //    }
-    
-    //    if(folder > folder_limit){
-    //        clearInterval(interval);
-    
-    //        const totalImageCount = limit_img * folder_limit;
-    //        const Mean = Sum / totalImageCount;
-    
-    
-    //        const Variance = intervalValues.map(x => Math.pow(x - Mean, 2)).reduce((a, b) => a + b) / totalImageCount ;
-    
-    //        const Std = Math.sqrt(Variance);
-    
-    //        console.warn( `MEAN: ${Mean}` );
-    //        console.warn( `Variance: ${Variance}` );
-    //        console.warn( `Standard Deviation: ${Std}` );
-           
-    //    }
-    
-    // }, 600);
+var folder = 1;
+var folder_limit = 7;
+var limit_img = 2019;
+var counter = 1;
+
+// img.src = `http://localhost:8082/${folder}/synthetic_mnist_${counter}.png`
+
+//     cv.addEventListener("END" , e=> {
+
+//         if(folder > folder_limit){
+
+//             e.preventDefault();
+
+//             const totalImageCount = limit_img * folder_limit;
+//             const Mean = Sum / totalImageCount;
+
+
+//             const Variance = values.map(x => Math.pow(x - Mean, 2)).reduce((a, b) => a + b) / totalImageCount ;
+
+//             const Std = Math.sqrt(Variance);
+
+//             const info =  {
+//                 "mean" : Mean,
+//                 "variance" : Variance,
+//                 "standard_deviation": Std,
+//                 "values" : values,
+//                 "errors" : errors,
+//             }
+//             console.warn( `MEAN: ${Mean}` );
+//             console.warn( `Variance: ${Variance}` );
+//             console.warn( `Standard Deviation: ${Std}` );
+
+//             downloadObjectAsJson(info, "info_chrome_wasm");
+
+//         }else{ 
+
+//             try{
+//                 img.src = `http://localhost:8082/${folder}/synthetic_mnist_${counter}.png`
+//             }catch(e) {
+//                 console.log("out")
+//             }
+        
+//             ++counter;
+        
+//             if(counter > limit_img) {
+//                 counter = 0;
+//                 ++folder;
+//             }
+//         }
+
+//     });
+
     
 
     img.crossOrigin = "Anonymous"
@@ -85,20 +106,20 @@ wasmModule().then(($wasm) => {
 
     });
 
-    const cv = document.querySelector("#mainCV");
-
-    const globalContext = cv.getContext("2d");
+   
     globalContext.fillStyle = "#fff"
     globalContext.fillRect(0, 0, cv.width, cv.height);
 
     img.onload = function () {
-        globalContext.drawImage(this, 0, 0, 500, 500);
-
+        globalContext.canvas.width = img.width;
+        globalContext.canvas.height = img.height;
+        globalContext.drawImage(this, 0, 0, img.width, img.height);
+    
         const imageData = globalContext.getImageData(0, 0, cv.width, cv.height);
 
         const needsBlur = document.querySelector("#blur_checkbox").checked;
 
-        //let dataGrayscale = null;
+        let dataGrayscale = null;
         StartTime = performance.now();
         if (needsBlur) {
             const blurredImage = boxBlur(imageData.data);
@@ -107,18 +128,17 @@ wasmModule().then(($wasm) => {
         } else {
 
             console.log(`executando o código`);
-            var arrNum = aaaa(imageData.data);
+            //var arrNum = aaaa(imageData.data, img.width, img.height);
             //console.log(arrNum );
 
-            arrNum.forEach(num => numbers.push(num));
-            //dataGrayscale = grayscaleWASM(imageData.data);
+            //arrNum.forEach(num => numbers.push(num));
+            dataGrayscale = grayscaleWASM(imageData.data);
         }
+        
+        const simplified = flattenFloatChanels([...dataGrayscale.grayscaleImage]);
 
-        //const simplified = flattenFloatChanels([...dataGrayscale.grayscaleImage]);
-
-        //const dataOtsu = otsusThresholdingWASM(simplified);
-        const binarizatedVector = $wasm.getBinarizatedImage();
-        //binarizationWASM(imageData.data, dataGrayscale.grayscalePointer, dataOtsu.threshold, this.src)
+        const dataOtsu = otsusThresholdingWASM(simplified);
+        const binarizatedVector =  binarizationWASM(imageData.data, dataGrayscale.grayscalePointer, dataOtsu.threshold, this.src)
 
         const finalResultImg = [];
 
@@ -128,12 +148,12 @@ wasmModule().then(($wasm) => {
         binarizatedVector.delete();
 
 
-        //const simplifiedImageBinarizated = flattenChanels(finalResultImg);
+        const simplifiedImageBinarizated = flattenChanels(finalResultImg);
 
-        //const step = 500; // canvas width
+        const step = img.width; // canvas width
 
 
-        //const verticalPlot = getVerticalPlot(simplifiedImageBinarizated);
+        const verticalPlot = getVerticalPlot(simplifiedImageBinarizated, img.height);
 
         // for(let posY = 0; posY < simplifiedImageBinarizated.length; posY += step) {
         //     let sum = 0;
@@ -144,7 +164,7 @@ wasmModule().then(($wasm) => {
         // }
 
 
-        //const pointsAuxVertical = getPoints(verticalPlot);
+        const pointsAuxVertical = getPoints(verticalPlot);
 
         // let searchingFinal = false;
         // for(let i = 0; i < verticalPlot.length; i++) {
@@ -160,7 +180,7 @@ wasmModule().then(($wasm) => {
         //     }
         // }
 
-        //const horizontalPlot = getHorizontalPlot(simplifiedImageBinarizated);
+        const horizontalPlot = getHorizontalPlot(simplifiedImageBinarizated, img.width);
         // for(let posX = 0; posX < step; posX++) {
         //     let sum2 = 0;
         //     for(let posY = posX; posY < simplifiedImageBinarizated.length; posY+= step) {
@@ -171,7 +191,7 @@ wasmModule().then(($wasm) => {
 
 
 
-        //const pointsAuxHorizontal = getPoints(horizontalPlot);
+        const pointsAuxHorizontal = getPoints(horizontalPlot);
 
         // let initHorizontal = 0;
         // let searchingFinalHoriz = false;
@@ -191,74 +211,75 @@ wasmModule().then(($wasm) => {
 
 
 
-        // if (document.querySelector("#histogram_checkbox").checked) {
-        //     document.querySelector(".container").appendChild(generateVerticalHistogram(verticalPlot, step, step));
-        //     document.querySelector(".container").appendChild(generateHorizontalHistogram(horizontalPlot, step, step));
-        // }
+        if (document.querySelector("#histogram_checkbox").checked) {
+            document.querySelector(".container").appendChild(generateVerticalHistogram(verticalPlot, step, step));
+            document.querySelector(".container").appendChild(generateHorizontalHistogram(horizontalPlot, step, step));
+        }
 
-        writeInCanvas(finalResultImg).then(canvas => {
-            //document.querySelector(".container").appendChild(canvas); 
+        writeInCanvas(finalResultImg, img.width, img.height).then(canvas => {
+            
+            appendInRow(canvas);
 
             const ctx = canvas.getContext("2d");
-            //ctx.strokeStyle = "#03fc30" // light green
-            //ctx.fillStyle = "green";
-            //ctx.font = "20px Arial";
-            // let x = 0;
-            // let y = 0;
-            // let width = 0;
-            // let height = 0;
+            ctx.strokeStyle = "#03fc30" // light green
+            ctx.fillStyle = "green";
+            ctx.font = "20px Arial";
+            let x = 0;
+            let y = 0;
+            let width = 0;
+            let height = 0;
 
-            // if (pointsAuxHorizontal.length > pointsAuxVertical.length) {
+            if (pointsAuxHorizontal.length > pointsAuxVertical.length) {
 
-            //     let curr = 0;
-            //     for (let i = 0; i < pointsAuxHorizontal.length; i++) {
+                let curr = 0;
+                for (let i = 0; i < pointsAuxHorizontal.length; i++) {
 
-            //         var verticalPoint = pointsAuxVertical[curr];
+                    var verticalPoint = pointsAuxVertical[curr];
 
-            //         x = pointsAuxHorizontal[i].init;
-            //         y = verticalPoint.init;
-            //         width = pointsAuxHorizontal[i].final - pointsAuxHorizontal[i].init;
-            //         height = verticalPoint.final - verticalPoint.init
+                    x = pointsAuxHorizontal[i].init;
+                    y = verticalPoint.init;
+                    width = pointsAuxHorizontal[i].final - pointsAuxHorizontal[i].init;
+                    height = verticalPoint.final - verticalPoint.init
 
-            //         if (width >= 10 && height >= 10) {
-            //             const number = {
-            //                 x, y, width, height
-            //             };
-            //             //numbers.push(number);
+                    if (width >= 10 && height >= 10) {
+                        const number = {
+                            x, y, width, height
+                        };
+                        numbers.push(number);
 
-            //         }
+                    }
 
-            //         if ((pointsAuxVertical.length - 1) > curr) curr++;
-            //     }
+                    if ((pointsAuxVertical.length - 1) > curr) curr++;
+                }
 
-            // } else {
+            } else {
 
-            //     let curr = 0;
-            //     for (let i = 0; i < pointsAuxVertical.length; i++) {
+                let curr = 0;
+                for (let i = 0; i < pointsAuxVertical.length; i++) {
 
-            //         var horizontalPoint = pointsAuxHorizontal[curr];
+                    var horizontalPoint = pointsAuxHorizontal[curr];
 
-            //         x = horizontalPoint.init;
-            //         y = pointsAuxVertical[i].init;
-            //         width = horizontalPoint.final - horizontalPoint.init;
-            //         height = pointsAuxVertical[i].final - pointsAuxVertical[i].init
+                    x = horizontalPoint.init;
+                    y = pointsAuxVertical[i].init;
+                    width = horizontalPoint.final - horizontalPoint.init;
+                    height = pointsAuxVertical[i].final - pointsAuxVertical[i].init
 
 
-            //         if (width >= 10 && height >= 10) {
-            //             const number = {
-            //                 x, y, width, height
-            //             };
-            //             //numbers.push(number);
-            //         }
+                    if (width >= 10 && height >= 10) {
+                        const number = {
+                            x, y, width, height
+                        };
+                        numbers.push(number);
+                    }
 
-            //         if ((pointsAuxHorizontal.length - 1) > curr) curr++;
-            //     }
+                    if ((pointsAuxHorizontal.length - 1) > curr) curr++;
+                }
 
-            // }
+            }
 
-            // FinalTime = performance.now();
-            // var calctime = FinalTime - StartTime;
-            // console.warn(`JS numbers took: ${calctime} mils`)
+            FinalTime = performance.now();
+            var calctime = FinalTime - StartTime;
+            console.warn(`JS numbers took: ${calctime} mils`)
 
             numbers.forEach((number, index) => {
                 const cv2 = document.createElement("canvas");
@@ -283,9 +304,7 @@ wasmModule().then(($wasm) => {
                     container.appendChild(div);
                     container.appendChild(canvas);
 
-                    document.body.querySelector(".container").appendChild(container);
-
-                    //var aa = new $wasm.RealVector();
+                    appendInRow(container);
 
                     const vv = canvas.getContext("2d");
 
@@ -323,10 +342,10 @@ wasmModule().then(($wasm) => {
                         }
                     }
 
-                    classify(aa);
+                    const num = classify(aa);
 
                     aa.delete();
-                    //console.log(`Result: ${num}`);
+                    console.log(`Result: ${num}`);
                    
                     const tooltip = document.querySelector(`#tooltip-${index}`);
                     tooltip.innerHTML = `I think this is a <strong>${num}</strong>! 🙂`;
@@ -337,17 +356,24 @@ wasmModule().then(($wasm) => {
                     ctx.strokeRect(number.x, number.y, number.width, number.height);
             });
 
+            
             FinalTime = performance.now();
             var calctime = FinalTime - StartTime;
 
-            //Sum += calctime
-            //intervalValues.push(calctime);
-            console.log(`ALL Process took ${calctime} mils`);
+            //se aconteceu um erro, não devemos considerar o tempo, pois a classificação da imagem não aconteceu.
+            if(!$wasm.hasError()) {
+                values.push(calctime);
+                Sum += calctime
+            }
+
+            console.log("ALL PROCESS", `ALL Process took ${calctime} mils`);
             window.numbers = [];
+
+            cv.dispatchEvent(new Event("END", {bubbles: false}));
         });
 
-        //dataGrayscale.free();
-        //dataOtsu.free();
+        dataGrayscale.free();
+        dataOtsu.free();
     };
 
 
@@ -435,16 +461,16 @@ wasmModule().then(($wasm) => {
         return cv
     }
 
-    function writeInCanvas(data) {
+    function writeInCanvas(data, width, height) {
 
         return new Promise((resolve, reject) => {
             const canvas = document.createElement("canvas");
-            canvas.width = 500;
-            canvas.height = 500;
+            canvas.width =  width;
+            canvas.height = height;
             canvas.classList.add("cv");
 
             var context = canvas.getContext("2d");
-            var imageData = context.createImageData(500, 500);
+            var imageData = context.createImageData( width, height);
             imageData.data.set(data);
             context.putImageData(imageData, 0, 0);
             resolve(canvas);
@@ -499,24 +525,24 @@ wasmModule().then(($wasm) => {
         return r;
     }
 
-    function getVerticalPlot(pixels) {
+    function getVerticalPlot(pixels, height) {
         const vector = new $wasm.vector();
         pixels.forEach(val => vector.push_back(val));
 
         const t1 = performance.now();
-        const response = $wasm.getVerticalPlot(vector);
+        const response = $wasm.getVerticalPlot(vector, height);
         const t2 = performance.now();
         Logger.log("WEBASSEMBLY", `get vertical plot took: ${t2 - t1} mils`);
         vector.delete();
         return [...response];
     }
 
-    function getHorizontalPlot(pixels) {
+    function getHorizontalPlot(pixels, width) {
         const vector = new $wasm.vector();
         pixels.forEach(val => vector.push_back(val));
 
         const t1 = performance.now();
-        const response = $wasm.getHorizontalPlot(vector);
+        const response = $wasm.getHorizontalPlot(vector, width);
         const t2 = performance.now();
         Logger.log("WEBASSEMBLY", `get horizontal plot took: ${t2 - t1} mils`);
         vector.delete();
@@ -565,12 +591,12 @@ wasmModule().then(($wasm) => {
     }
 
 
-    function aaaa(pixels) {
+    function aaaa(pixels, imgWidth, imgHeight) {
 
         const vector = new $wasm.RealVector();
         pixels.forEach(val => vector.push_back(val));
 
-        const response = $wasm.aaaa(vector);
+        const response = $wasm.aaaa(vector, imgWidth, imgHeight);
 
         const r = [];
         for(let i=0; i < response.size(); i++) {
@@ -680,5 +706,13 @@ wasmModule().then(($wasm) => {
         Logger.log("WEBASSEMBLY", `Image standartization took: ${t12 - t11} mils`);
         vector.delete();
         return response;
+    }
+
+    function appendInRow(canvas) {
+        const div = document.createElement("div");
+        div.classList.add("col-3");
+        const rows = document.querySelector("#rows");
+        div.appendChild(canvas);
+        rows.appendChild(div);
     }
 });
